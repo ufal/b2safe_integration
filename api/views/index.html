@@ -1,0 +1,108 @@
+<html>
+<head>
+
+<script
+  src="https://code.jquery.com/jquery-3.2.1.min.js"
+  integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+  crossorigin="anonymous"></script>
+  
+ <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+ <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+ 
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+<script>
+
+var status2cssClass =  {
+	"COMPLETED" : "success",
+	"IN PROGRESS" : "info",
+	"QUEUED" : "secondary",
+	"ERROR" : "danger"
+};
+
+$(document).ready(function () {	
+
+	$.getJSON(
+    		'http://localhost:3000/list', 
+    		function(data) {
+    			var container = $("#item_list");
+
+    			data.forEach(function(item){
+    				var checksum = "";
+    				if(item.replication_data)
+    					checksum = item.replication_data.checksum;
+    				container.append("<tr class='" + status2cssClass[item.status] + "'>"
+    				+ "<td>" + item.handle + "</td>"    			
+    				+ "<td>" + checksum + "</td>"
+    				+ "<td>" + item.status + "</td>"
+    				+ "<td><a href='http://localhost:3000/retrieve?handle=" + item.handle + "'><i class='fa fa-download'> </i></a></td>"
+    				+ "</tr>");
+    			});
+    		}
+	);
+	
+	$("#upload").click( function() {
+	
+		var handle = $("#handle").val();
+		var file = $("#file").val();				
+		$.post(
+    			'http://localhost:3000/replicate', {'handle': handle, 'filename': file}, 
+    			function(data, textStatus) {
+    				alert(textStatus);
+    			}
+    		);
+	});
+});
+
+</script> 
+
+  
+</head>
+<body>
+
+<div class="container">
+	<div class="card" style="min-height: 400px;">
+	  <div class="card-header">
+	    <h1>List Items</h1>
+	  </div>
+	  <div class="card-body">
+	  	<table class="table" >
+		<thead>
+			    <tr>
+			      <th scope="col">Handle</th>
+			      <th scope="col">Checksum</th>
+			      <th scope="col">Status</th>
+			      <th scope="col">Actions</th>
+			    </tr>
+			  </thead>
+  			<tbody id="item_list"></tbody>	  	
+	  	</table>
+	  </div>
+	</div>
+	
+	<div class="card" >
+	  <div class="card-header">
+	    <h1>Upload Item</h1>
+	  </div>
+	  <div class="card-body">
+	<form>
+	  <div class="form-group">
+	    <label for="handle">Item Handle</label>
+	    <input type="text" class="form-control" id="handle" placeholder="Enter Item Handle">
+	  </div>
+  
+	  <div class="form-group">
+	    <label for="file">File Path on Server</label>
+	    <input type="text" class="form-control" id="file" placeholder="Enter Item Handle">
+	  </div>
+  
+  		<button type="submit" class="btn btn-primary" id="upload">Submit</button>
+	</form>	  	
+	  </div>
+	</div>  
+	  
+</div>
+
+</body>
+
+</html>

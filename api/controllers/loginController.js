@@ -1,77 +1,95 @@
 var querystring = require('querystring');
-var http = require("http");
+var rp = require('request-promise');
 
-exports.doLogin = function(req, res, db, config) {
-
-
-
-};
-
-exports.getToken = function(db, config) {
+function testToken (token, config, callback) {
 	
-	var token = null;
-	
-	db.collection('user').find({'status' : true}).toArray(function(err, results) {
-		if(results.length == 0) {
-			
-		} else {
-			token = results[0].token;
-		}
-	});
-	
-	return token;
-};
-
-
-login = function(db, config) {
-	
-	var resopnse = "";
-	
-	var post_data = querystring.stringify({
-		'username' : config.b2safe.username,
-		'password': config.b2safe.password
-	});		
-	
-	var post_options = {
-	      host: config.b2safe.url,
-	      path: '/auth/b2safeproxy',
+	var options = {
+	      uri: config.b2safe.url + '/auth/b2safeproxy',
 	      method: 'GET',
-	      headers: {
-	          'Content-Type': 'application/x-www-form-urlencoded',
-	          'Content-Length': Buffer.byteLength(post_data)
-	      }	      
+	      auth: {
+              'bearer': token
+	      },
+	      json: true
+	};
+		
+	rp(options)
+		.then(function (data){
+			if(data.Meta.status === 200) {
+				callback(true);
+			} else {
+				callback(false);
+			}			
+		})
+		.catch(function (err) {
+			callback(false);	
+		});	
+};
+
+
+async function updateToken(token, db, config) {	
+	await db.collection("user").update(
+		{ 'username' : config.b2safe.username },
+		{
+			'username' : config.b2safe.username,
+			'token' : token
+		},
+		{ upsert: true }
+	);
+}
+
+
+async function login(db, config, callback) {
+	
+	var token = "";
+	var response = "";
+	
+	var options = {
+	      uri: config.b2safe.url + '/auth/b2safeproxy',
+	      method: 'POST',
+	      formData: {
+	  		'username' : config.b2safe.username,
+			'password': config.b2safe.password,
+	      },
+	      json: true
 	};
 	
-	var request = http.request(post_options, function(response) {
-		response.setEncoding('utf8');
-		response.on('data', function (data) {
-			if(data.Meta.status === "200") {
-				var token = data.Response.token;
-				
-				updateToken(token, db);
-				
+	await rp(options)
+		.then(function (data){
+			if(data.Meta.status === 200) {
+				token = data.Response.data.token;
+				updateToken(token, db, config);
+				response = data;				
 			} else {
-				response = "{'status' : 500}";
-			}
-		});				
-	});
+				response = data;
+			}			
+		})
+		.catch(function (err) {
+			response = err;			
+		});
 	
-	request.on('error', function(err) {
-		res.send(err);
-	});
-	
-	request.end();	
-};
+	callback(response);
+}
 
-
-updateToken = function (token, db, config) {
-	
-	var user = db.collection('user');
-	user.findandmodify({
-		query: {'username' : config.b2safe.username},
-		update: {$set: {'valid' : false}}
+exports.getToken = function(db, config, callback) {	
+	db.collection('user').findOne({'username' : config.b2safe.username}, function(err, result) {
+		if(err) {
+			callback(err);
+		} else {
+			testToken(result.token, config, (valid) => {
+				if(valid) {
+					callback(result.token);
+				} else {
+					login(db, config, (data) => {
+						callback(data.Response.data.token);
+					});
+				}
+			});
+		}
 	});
-	
-	
-	
+}
+ 
+exports.doLogin = function(req, res, db, config) {
+	login(db, config, function(response) {
+		res.send(response);
+	});	
 };

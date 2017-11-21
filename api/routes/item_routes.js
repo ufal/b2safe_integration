@@ -16,6 +16,7 @@ module.exports = function(app, db, config) {
 	});
 	
 	app.get('/retrieve', (req, res) => {
+		console.log("routes retrieve");
 		itemController.retrieve(req, res, db, config);
 	});
 
