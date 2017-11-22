@@ -1,8 +1,6 @@
 /**
  * Tests.
  */
-process.env.NODE_ENV = 'test';
-
 //Require the dev-dependencies
 let chai = require('chai');
 let chaiHttp = require('chai-http');
