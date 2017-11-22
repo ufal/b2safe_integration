@@ -1,5 +1,4 @@
-
-var itemController = require('../controllers/itemController');
+let itemController = require('../controllers/itemController');
 
 module.exports = function(app, db, config) {
 

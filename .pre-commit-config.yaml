@@ -1,0 +1,4 @@
+-   repo: git://github.com/pre-commit/mirrors-jshint
+    sha: HEAD
+    hooks:
+    -   id: jshint
