@@ -2,6 +2,7 @@ var querystring = require('querystring');
 var rp = require('request-promise');
 var fs = require('fs');
 var mime = require('mime-types')
+var md5File = require('md5-file')
 
 var loginController = require('./loginController');
 
@@ -33,6 +34,7 @@ exports.retrieve = function(req, res, db, config) {
 					
 					loginController.getToken(db, config, (token) => {					
 						var options = {
+								encoding: null,
 								uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + f,
 								method: 'GET',
 								auth: {
@@ -45,7 +47,6 @@ exports.retrieve = function(req, res, db, config) {
 	
 						rp(options)
 						.then(function (data) {
-
 							res.writeHead(200, {"Transfer-Encoding": "chunked",
 								"Content-Type" : mime.lookup(f),
 								"Content-Disposition" : "attachment; filename=" + f
@@ -79,8 +80,10 @@ exports.replicate = function(req, res, db, config) {
 	if(handle && fileToReplciate) {
 		
 		if(!fs.existsSync(fileToReplciate)) {
-			res.send({response: "replication file not exist"});
+			res.send({response: "Uploaded file not exist"});
 		}
+		
+		var checksum = md5File.sync(fileToReplciate);
 		
 		db.collection("item").findOne({'handle' : handle}, function(err, result) {		
 			if(err) {
@@ -93,7 +96,7 @@ exports.replicate = function(req, res, db, config) {
 						res.send({response: result.status});
 					}
 				} else {
-					db.collection("item").insertOne({'handle' : handle, 'filename' : fileToReplciate, 'status' : 'QUEUED'}, function(err, result) {
+					db.collection("item").insertOne({'handle' : handle, 'filename' : fileToReplciate, 'checksum': checksum, 'status' : 'QUEUED'}, function(err, result) {
 						if(err) {
 							res.send(err);
 						} else {
@@ -114,17 +117,57 @@ exports.getStatus = function(req, res, db, config) {
 	
 	var handle = req.query.handle;
 	
-	var status = '';
-	// get status from database
+	console.log("in getStatus");	
 	
-	var response = '{"pid" : ' + handle + ', "status" : ' + status + '}';
-	res.send(response);
-	
+	db.collection("item").findOne({'handle' : handle}, function(err, result) {
+		if(err) {
+			res.send(err);
+		} else {
+			console.log(result);
+			if(result) {
+				res.send({response: result.status});
+			} else {
+				res.send({response: "ERROR"});
+			}
+		}		
+	});	
 };
 
 
 exports.remove = function(req, res, db, config) {		
 	
-	var handle = req.query.handle;	
+	var handle = req.query.handle;
 	
+	db.collection("item").findOne({'handle' : handle}, function(err, result) {
+		if(err) {
+			res.send(err);
+		} else {
+			console.log(result);
+			if(result) {
+				loginController.getToken(db, config, (token) => {					
+					var options = {
+							encoding: null,
+							uri: config.b2safe.url + '/api/registered' + result.replication_data.path,
+							method: 'DELETE',
+							auth: {
+								'bearer': token
+							}
+					};
+
+					rp(options)
+					.then(function (data) {						
+						db.collection("item").deleteOne({'handle' : handle}, function(err, del) {
+							res.send({response: "DELETED"});
+						});
+					})
+					.catch(function (error) {
+						console.log(error);
+					});
+				});				
+			} else {
+				res.send({response: "ERROR"});
+			}
+		}		
+	});	
+		
 };

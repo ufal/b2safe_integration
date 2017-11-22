@@ -1,45 +1,104 @@
 <html>
 <head>
+  
+<link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"> 
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
 
 <script
   src="https://code.jquery.com/jquery-3.2.1.min.js"
   integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
   crossorigin="anonymous"></script>
-  
- <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
- <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
- 
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.3/umd/popper.min.js" integrity="sha384-vFJXuSJphROIrBnz7yo7oB41mKfc8JzQZiCq4NCceLEaO4IHwicKwpJf9c9IpFgh" crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js" integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ" crossorigin="anonymous"></script>
+
+<style type="text/css">
+	.popover{
+         display: table;
+	}
+</style>
 
 <script>
 
 var status2cssClass =  {
 	"COMPLETED" : "success",
 	"IN PROGRESS" : "info",
-	"QUEUED" : "secondary",
+	"QUEUED" : "warning",
 	"ERROR" : "danger"
 };
 
-$(document).ready(function () {	
+function loadList() {
+
+ 	var container = $("#item_list");
+    	container.html("");
 
 	$.getJSON(
     		'http://localhost:3000/list', 
     		function(data) {
-    			var container = $("#item_list");
 
     			data.forEach(function(item){
-    				var checksum = "";
-    				if(item.replication_data)
-    					checksum = item.replication_data.checksum;
-    				container.append("<tr class='" + status2cssClass[item.status] + "'>"
-    				+ "<td>" + item.handle + "</td>"    			
-    				+ "<td>" + checksum + "</td>"
-    				+ "<td>" + item.status + "</td>"
-    				+ "<td><a href='http://localhost:3000/retrieve?handle=" + item.handle + "'><i class='fa fa-download'> </i></a></td>"
+    				var checksum = item.checksum;
+    				var repData = "";
+    				var actions = "&nbsp;";
+    				if(item.replication_data) {
+    					var replication_checksum = item.replication_data.checksum;
+    					if(checksum==replication_checksum) {
+    						checksum = "<i class='text-success fa fa-check-square' data-toggle='tooltip' data-placement='bottom' title='Checksum verfied from server'> </i> " + checksum;
+    					} else {
+    						checksum = "<i class='text-danger fa fa-warning' data-toggle='tooltip' data-placement='bottom' title='Invalid checksum received from server'> </i> " + checksum;
+    					}
+    					repData = "<div><table class=\"table table-sm\" style=\"font-size: 12px;\">";
+    					for(var key in item.replication_data) {
+    						repData += "<tr><td><strong>" + key + "</strong></td><td>" + item.replication_data[key] + "</td></tr>"; 
+    					}
+    					repData += "</table></div>";
+    					
+    					if(item.status=='COMPLETED') {
+    						actions = "<a href='http://localhost:3000/retrieve?handle=" + item.handle + "'><i class='text-dark fa fa-download'> </i></a> <a href='#' onclick='javascript:remove(\"" + item.handle + "\");'><i class='text-danger fa fa-window-close'> </i></a>";
+    					}
+    				} else
+    				if(item.replication_error) {
+    					repData = "<div><table class=\"table table-sm\" style=\"font-size: 12px;\">";
+    					for(var key in item.replication_error) {
+    						repData += "<tr><td><strong>" + key + "</strong></td><td>" + item.replication_error[key] + "</td></tr>";
+    					}
+    					repData += "</table></div>";
+    				}
+    				container.append("<tr class='table-" + status2cssClass[item.status] + "'>"
+    				+ "<td class='align-middle'>" + item.handle + "</td>"    			
+    				+ "<td class='align-middle'>" + checksum + "</td>"
+    				+ "<td class='align-middle'>"
+    				+ 	"<span data-container='body' data-toggle='popover' data-trigger='hover' data-placement='bottom' data-content='" + repData + "' class='badge badge-" + status2cssClass[item.status]+ "'>" + item.status + "</span>"
+    				+ "</td>"
+    				+ "<td class='align-middle'>" + actions + "</td>"
     				+ "</tr>");
     			});
+    			
+			$('[data-toggle="tooltip"]').tooltip();
+			
+			
+			
+			$('[data-toggle="popover"]').popover({
+		    			container: 'body',
+		    			html: true
+		  	});
+    			
     		}
 	);
+}
+
+function remove(handle) {
+	$.getJSON(
+    		'http://localhost:3000/remove?handle=' + handle, 
+    		function(data) {
+    			loadList();
+		}
+	);
+}
+
+$(document).ready(function () {	
+
+	loadList();
 	
 	$("#upload").click( function() {
 	
@@ -48,10 +107,11 @@ $(document).ready(function () {
 		$.post(
     			'http://localhost:3000/replicate', {'handle': handle, 'filename': file}, 
     			function(data, textStatus) {
-    				alert(textStatus);
+    				loadList();
     			}
     		);
 	});
+		
 });
 
 </script> 
@@ -60,13 +120,17 @@ $(document).ready(function () {
 </head>
 <body>
 
+<nav class="navbar navbar-dark bg-dark">
+  <div class="navbar-brand"><b>EUDAT-B2STAGE HTTP-API CLARIN Integration</b></div>
+</nav>
+
 <div class="container">
-	<div class="card" style="min-height: 400px;">
+	<div class="card" style="margin: 10px; min-height: 400px;">
 	  <div class="card-header">
-	    <h1>List Items</h1>
-	  </div>
+	    <strong>Item List</strong><a class="pull-right" href="#" onclick="javascript:loadList();"><i class="fa fa-refresh"> </i></a>
+	  </div>	
 	  <div class="card-body">
-	  	<table class="table" >
+	  	<table class="table table-bordered" >
 		<thead>
 			    <tr>
 			      <th scope="col">Handle</th>
@@ -80,9 +144,9 @@ $(document).ready(function () {
 	  </div>
 	</div>
 	
-	<div class="card" >
+	<div class="card" style="margin: 10px;">
 	  <div class="card-header">
-	    <h1>Upload Item</h1>
+	    <strong>Upload Item</strong>
 	  </div>
 	  <div class="card-body">
 	<form>
@@ -93,7 +157,7 @@ $(document).ready(function () {
   
 	  <div class="form-group">
 	    <label for="file">File Path on Server</label>
-	    <input type="text" class="form-control" id="file" placeholder="Enter Item Handle">
+	    <input type="text" class="form-control" id="file" placeholder="Enter File Path">
 	  </div>
   
   		<button type="submit" class="btn btn-primary" id="upload">Submit</button>

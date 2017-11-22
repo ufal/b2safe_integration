@@ -2,7 +2,7 @@ var querystring = require('querystring');
 var rp = require('request-promise');
 var loginController = require('../controllers/loginController');
 var fs = require('fs');
-
+var datetime = require('node-datetime');
 
 function createFolder(item, db, config, callback) {
 
@@ -52,6 +52,7 @@ function createFolder(item, db, config, callback) {
 								{'handle' : item.handle},
 								{$set: {
 									'status' : 'ERROR',
+									'end_time' : new Date().toISOString(),
 									'replication_error': data.Response.errors }
 								});						
 					}
@@ -69,7 +70,7 @@ function doReplicate(item, db, config) {
 
 		var f = item.filename.split("/");
 		f = f[f.length-1];
-
+		
 		var options = {
 				uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + item.handle.replace("/", "_") + "/" + f,
 				method: 'PUT',
@@ -94,6 +95,7 @@ function doReplicate(item, db, config) {
 						{'handle' : item.handle},
 						{$set: {
 							'status' : 'COMPLETED',
+							'end_time' : new Date().toISOString(),
 							'replication_data': data.Response.data }
 						});						
 			} else {
@@ -101,6 +103,7 @@ function doReplicate(item, db, config) {
 						{'handle' : item.handle},
 						{$set: {
 							'status' : 'ERROR',
+							'end_time' : new Date().toISOString(),
 							'replication_error': data.Response.errors }
 						});						
 			}			
@@ -112,6 +115,7 @@ function doReplicate(item, db, config) {
 					{$set:
 					{
 						'status' : 'ERROR',
+						'end_time' : new Date().toISOString(),
 						'replication_error': err
 					}
 					});						
@@ -133,7 +137,12 @@ exports.run = function(db, config, callback) {
 					var item = items[i];
 					db.collection("item").updateOne(
 							{'handle' : item.handle},
-							{$set:{'status' : 'IN PROGRESS'}},
+							{$set:
+								{
+									'status' : 'IN PROGRESS',
+									'start_time' : new Date().toISOString()
+								}
+							},
 							function(err, res) {
 								if(err) {
 									console.log(err);

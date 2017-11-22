@@ -13,7 +13,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 MongoClient.connect(config.db.url, (err, database) => {
 	if (err) { return console.log(err); }
 	require('./api/routes')(app, database, config);
-	cron.schedule('*/2 * * * * *', () => {
+	cron.schedule('*/3 * * * * *', () => {
 		rs.run(database, config, null);
 	});
 });

@@ -1,0 +1,11 @@
+module.exports = {
+		b2safe : {
+			url : 'https://b2stage.cineca.it',
+			username : '',
+			password : '',
+			path: ''
+		},
+		db : {
+			url : ''
+		}
+};

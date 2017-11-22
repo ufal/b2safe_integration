@@ -21,7 +21,7 @@ module.exports = function(app, db, config) {
 	});
 
 	app.get('/remove', (req, res) => {
-		itemController.retrieve(req, res, db, config);
+		itemController.remove(req, res, db, config);
 	});
 
 };
