@@ -29,11 +29,10 @@ var status2cssClass =  {
 
 function loadList() {
 
- 	var container = $("#item_list");
-    	container.html("");
+ 	var container = $("#item_list").html("");
 
 	$.getJSON(
-    		'http://localhost:3000/list', 
+    		'./list',
     		function(data) {
 
     			data.forEach(function(item){

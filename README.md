@@ -10,7 +10,7 @@ Update the config/config.js file with B2safe credentials and mongodb URL.
 
 `sudo npm run start`
 
-The server will start on port 3000. Update the port in server.js
+The server will start on port 3000. Update the port or use `PORT` environmental variable in server.js
 
 To access the application go to http://localhost:3000/
 

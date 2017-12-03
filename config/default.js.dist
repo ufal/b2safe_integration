@@ -6,6 +6,6 @@ module.exports = {
 			path: ''
 		},
 		db : {
-			url : ''
+			url : 'mongodb://localhost:27017/'
 		}
 };

@@ -1,5 +1,4 @@
-
-var loginController = require('../controllers/loginController');
+let loginController = require('../controllers/loginController');
 
 module.exports = function(app, db, config) {
 

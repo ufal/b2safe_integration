@@ -1,1 +1,5 @@
-config/config.js
+__*
+config/default.js
+.idea
+node_modules
+package-lock.json

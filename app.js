@@ -1,14 +1,23 @@
-var express = require('express');
-var MongoClient = require('mongodb').MongoClient;
-var bodyParser = require('body-parser');
-var config = require('./config/config');
-var cron = require('node-cron');
-var rs = require('./api/crons/replicationScheduler');
+let express = require('express');
+let MongoClient = require('mongodb').MongoClient;
+let bodyParser = require('body-parser');
+let config = require('config');
+let cron = require('node-cron');
+let rs = require('./api/crons/replicationScheduler');
+let morgan = require('morgan');
 
-var app = express();
-module.exports = app;
+let app = express();
+
+if(config.util.getEnv('NODE_ENV') !== 'test') {
+    app.use(morgan('combined'));
+}
 
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+// make at least the basic available even without db
+// - testing
+require('./api/routes')(app, null, config);
 
 MongoClient.connect(config.db.url, (err, database) => {
 	if (err) { return console.log(err); }
@@ -17,3 +26,5 @@ MongoClient.connect(config.db.url, (err, database) => {
 		rs.run(database, config, null);
 	});
 });
+
+module.exports = app;
