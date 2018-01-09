@@ -23,7 +23,7 @@ function testToken (token, config, callback) {
 		.catch(function (err) {
 			callback(false);	
 		});	
-};
+}
 
 
 async function updateToken(token, db, config) {	
@@ -40,6 +40,8 @@ async function updateToken(token, db, config) {
 
 async function login(db, config, callback) {
 	
+	console.log("In Login");
+	
 	var token = "";
 	var response = "";
 	
@@ -55,6 +57,7 @@ async function login(db, config, callback) {
 	
 	await rp(options)
 		.then(function (data){
+			console.log(data);
 			if(data.Meta.status === 200) {
 				token = data.Response.data.token;
 				updateToken(token, db, config);
@@ -75,11 +78,12 @@ exports.getToken = function(db, config, callback) {
 		if(err) {
 			callback(err);
 		} else {
-			testToken(result.token, config, (valid) => {
+			testToken(result.token, config, function(valid) {
 				if(valid) {
 					callback(result.token);
 				} else {
-					login(db, config, (data) => {
+					login(db, config, function(data) {
+						console.log(data.Response);
 						callback(data.Response.data.token);
 					});
 				}

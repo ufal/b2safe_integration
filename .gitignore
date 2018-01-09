@@ -1,5 +1,5 @@
 __*
-config/default.js
+config/production.json
 .idea
 node_modules
 package-lock.json

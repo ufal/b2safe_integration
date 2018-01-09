@@ -19,10 +19,10 @@ app.use(bodyParser.json());
 // - testing
 require('./api/routes')(app, null, config);
 
-MongoClient.connect(config.db.url, (err, database) => {
+MongoClient.connect(config.db.url, function(err, database) {
 	if (err) { return console.log(err); }
 	require('./api/routes')(app, database, config);
-	cron.schedule('*/3 * * * * *', () => {
+	cron.schedule('*/3 * * * * *', function() {
 		rs.run(database, config, null);
 	});
 });

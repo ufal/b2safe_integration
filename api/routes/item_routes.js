@@ -2,24 +2,24 @@ let itemController = require('../controllers/itemController');
 
 module.exports = function(app, db, config) {
 
-	app.get('/list', (req, res) => {
+	app.get('/list', function(req, res) {
 		itemController.listItems(req, res, db, config);
 	});
 	
-	app.post('/replicate', (req, res) => {
+	app.post('/replicate', function(req, res) {
 		itemController.replicate(req, res, db, config);
 	});
 
-	app.get('/status', (req, res) => {
-		itemController.getStatus(req, res, db, config);
+	app.get('/itemstatus', function(req, res) {
+		itemController.getItemStatus(req, res, db, config);
 	});
 	
-	app.get('/retrieve', (req, res) => {
+	app.get('/retrieve', function(req, res) {
 		console.log("routes retrieve");
 		itemController.retrieve(req, res, db, config);
 	});
 
-	app.get('/remove', (req, res) => {
+	app.get('/remove', function(req, res) {
 		itemController.remove(req, res, db, config);
 	});
 
