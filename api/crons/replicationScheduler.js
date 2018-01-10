@@ -51,9 +51,14 @@ function createFolder(item, db, config, callback) {
 				.then(function (data) {			
 					if(data.Meta.status === 200) {
 						callback(item, token, db, config);
+					} 
+				})
+				.catch(function (error) {
+					if (error.statusCode === 400) { // folder already exists
+						callback(item, token, db, config);
 					} else {
 						db.collection("item").updateOne(
-								{'handle' : item.handle},
+								{'handle' : item.handle, 'filename': item.filename},
 								{$set: {
 									'status' : 'ERROR',
 									'end_time' : new Date().toISOString(),
@@ -72,12 +77,13 @@ function splitReplicate(item, token, db, config) {
 	
 	console.log("In split replication.");
 	
-	db.collection("item").updateOne( {'handle' : item.handle}, { $set: { 'splitted': 1 }});
+	db.collection("item").updateOne( {'handle' : item.handle, 'filename': item.filename}, { $set: { 'splitted': 1 }});
 	
 	splitFile.splitFileBySize(item.filename, parseInt(config.b2safe.maxfilesize) * 1000 * 1000)
 	  .then( async (names) => {
 		  
 		  var error = false;
+		  var splitverified = true;
 		  var error_msg = "";
 		  
 		  for(var i in names) {
@@ -115,15 +121,19 @@ function splitReplicate(item, token, db, config) {
 						console.log(data);
 						var end_time = new Date().toISOString();
 						if(data.Meta.status === 200) {
+							var serverchecksum = data.Response.data.checksum;
+							var verified = checksum === serverchecksum;
+							splitverified = splitverified && verified;
 							db.collection("item").updateOne(
-									{'handle' : item.handle},
+									{'handle' : item.handle, 'filename': item.filename},
 									{$addToSet: {
 										'splitfiles' : 
-											{ 	'name' : name,
+											{ 	'name' : f,
 												'status': 'COMPLETED',
 												'checksum': checksum,
 												'filesize': filesize,
 												'start_time': start_time,
+												'verified' : verified,
 												'end_time': end_time,
 												'replication_data': data.Response.data
 											}
@@ -132,7 +142,7 @@ function splitReplicate(item, token, db, config) {
 								);						
 						} else {
 							db.collection("item").updateOne(
-								{'handle' : item.handle},
+								{'handle' : item.handle, 'filename': item.filename},
 								{$addToSet: {
 									'splitfiles' : 
 										{
@@ -154,7 +164,7 @@ function splitReplicate(item, token, db, config) {
 					.catch(function (err) {
 						console.log(err);
 						db.collection("item").updateOne(
-							{'handle' : item.handle},
+							{'handle' : item.handle, 'filename': item.filename},
 							{$addToSet: {
 								'splitfiles' : 
 									{
@@ -174,10 +184,15 @@ function splitReplicate(item, token, db, config) {
 				if (error) break;
 				
 		  }
+
+		  for(var i in names) {
+				var name = names[i];
+				fs.unlinkSync(name);
+		  }		  
 		  
 		  if(error) {
 				db.collection("item").updateOne(
-						{'handle' : item.handle},
+						{'handle' : item.handle, 'filename': item.filename},
 						{$set:
 							{
 								'status' : 'ERROR',
@@ -187,10 +202,21 @@ function splitReplicate(item, token, db, config) {
 						});
 			  
 		  } else {
+			  
+			  	options = {
+					  uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + item.handle.replace("/", "_"),
+					  method: 'GET',
+					  auth: {
+						  'bearer': token
+					  },
+					  json: true
+				};
+			  
 				db.collection("item").updateOne(
-						{'handle' : item.handle},
+						{'handle' : item.handle, 'filename': item.filename},
 						{$set:
 							{
+								'verified' : splitverified,
 								'status' : 'COMPLETED',
 								'end_time' : new Date().toISOString()
 							}
@@ -200,7 +226,7 @@ function splitReplicate(item, token, db, config) {
 		  
 	  }).catch((err) => {
 			db.collection("item").updateOne(
-					{'handle' : item.handle},
+					{'handle' : item.handle, 'filename': item.filename},
 					{$set:
 						{
 							'status' : 'ERROR',
@@ -242,16 +268,20 @@ function doReplicate(item, token, db, config) {
 	.then(function (data) {
 		console.log(data);
 		if(data.Meta.status === 200) {
+			var checksum = item.checksum;
+			var serverchecksum = data.Response.data.checksum;
+			var verified = checksum === serverchecksum;
 			db.collection("item").updateOne(
-					{'handle' : item.handle},
+					{'handle' : item.handle, 'filename': item.filename},
 					{$set: {
 						'status' : 'COMPLETED',
+						'verified' : verified,
 						'end_time' : new Date().toISOString(),
 						'replication_data': data.Response.data }
 					});						
 		} else {
 			db.collection("item").updateOne(
-					{'handle' : item.handle},
+					{'handle' : item.handle, 'filename': item.filename},
 					{$set: {
 						'status' : 'ERROR',
 						'end_time' : new Date().toISOString(),
@@ -262,7 +292,7 @@ function doReplicate(item, token, db, config) {
 	.catch(function (err) {
 		console.log(err);
 		db.collection("item").updateOne(
-				{'handle' : item.handle},
+				{'handle' : item.handle, 'filename': item.filename},
 				{$set:
 				{
 					'status' : 'ERROR',
@@ -286,7 +316,7 @@ exports.run = function(db, config, callback) {
 				for(var i in items) {
 					var item = items[i];
 					db.collection("item").updateOne(
-							{'handle' : item.handle},
+							{'handle' : item.handle, 'filename': item.filename},
 							{$set:
 								{
 									'status' : 'IN PROGRESS',

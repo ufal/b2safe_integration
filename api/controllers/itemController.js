@@ -12,9 +12,12 @@ exports.listItems = function(req, res, db, config) {
 												"$push" : {
 													"handle": "$handle",
 													"filename": "$filename",
+													"filesize": "$filesize",
 													"splitted": "$splitted",
+													"splitfiles": "$splitfiles",
 													"checksum": "$checksum",
 													"user-checksum": "$user-checksum",
+													"verified": "$verified",
 													"status": "$status",
 													"start_time": "$start_time",
 													"end_time": "$end_time",
