@@ -1,0 +1,12 @@
+{
+	"b2safe" : {
+		"url" : "https://b2stage.cineca.it",
+		"username" : "",
+		"password" : "",
+		"path": "",
+		"maxfilesize": 1000
+	},
+	"db" : {
+		"url" : "mongodb://localhost:27017/"
+	}
+}

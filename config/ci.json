@@ -1,0 +1,12 @@
+{
+    "b2safe" : {
+        "url" : "",
+        "username" : "",
+        "password" : "",
+        "path" : "",
+		"maxfilesize": 1000        
+    },
+    "db" : {
+        "url" : "mongodb://localhost:27017/"
+    }
+}

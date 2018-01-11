@@ -144,6 +144,8 @@ exports.replicate = function(req, res, db, config) {
 	var handle = req.body.handle;
 	var userChecksum = req.body.checksum;
 	
+	console.log(handle + " " + toReplicate);
+	
 	if(handle && toReplicate) {
 		
 		if(!fs.existsSync(toReplicate)) {
