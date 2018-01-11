@@ -1,6 +1,7 @@
 var querystring = require('querystring');
 var rp = require('request-promise');
 var loginController = require('../controllers/loginController');
+var path = require('path');
 var fs = require('fs');
 var datetime = require('node-datetime');
 var splitFile = require('split-file');
@@ -242,12 +243,12 @@ function doReplicate(item, token, db, config) {
 		splitReplicate(item, token, db, config);
 		return;
 	}
-	
-	var f = item.filename.split("/");
-	f = f[f.length-1];
-	
+
+	// in the form of a HANDLE/BASENAME
+	var arg_path = item.handle.replace("/", "_") + "/" + path.basename(item.filename);
+
 	var options = {
-			uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + item.handle.replace("/", "_") + "/" + f,
+			uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + arg_path,
 			method: 'PUT',
 			auth: {
 				'bearer': token
