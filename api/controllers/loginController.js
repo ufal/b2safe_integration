@@ -40,8 +40,6 @@ async function updateToken(token, db, config) {
 
 async function login(db, config, callback) {
 	
-	console.log("In Login");
-	
 	var token = "";
 	var response = "";
 	
@@ -61,7 +59,8 @@ async function login(db, config, callback) {
 			if(data.Meta.status === 200) {
 				token = data.Response.data.token;
 				updateToken(token, db, config);
-				response = data;				
+				response = data;
+				console.log(token);
 			} else {
 				response = data;
 			}			
@@ -69,7 +68,7 @@ async function login(db, config, callback) {
 		.catch(function (err) {
 			response = err;			
 		});
-	
+		
 	callback(response);
 }
 

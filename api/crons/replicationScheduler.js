@@ -29,10 +29,8 @@ function createFolder(item, db, config, callback) {
 		rp(options)
 		.then(function (response) {
 			console.log("folder creation response : " + response.statusCode);
-			if(response.statusCode === 200) { // folder already exists
-				callback(item, token, db, config);
-			}
-			
+			// folder already exists
+			callback(item, token, db, config);			
 		})
 		.catch(function (error) {
 			console.log("folder creation catch : " + error.statusCode);
@@ -49,9 +47,7 @@ function createFolder(item, db, config, callback) {
 
 				rp(options)
 				.then(function (data) {			
-					if(data.Meta.status === 200) {
-						callback(item, token, db, config);
-					} 
+					callback(item, token, db, config);
 				})
 				.catch(function (error) {
 					if (error.statusCode === 400) { // folder already exists
@@ -242,7 +238,7 @@ function doReplicate(item, token, db, config) {
 	var filesize = item.filesize;
 	console.log(filesize);
 	if(parseInt(filesize) >= parseInt(config.b2safe.maxfilesize)) {
-		console.log("Its a big file");
+		console.log("Its a big file .. splitting.");
 		splitReplicate(item, token, db, config);
 		return;
 	}

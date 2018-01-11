@@ -41,10 +41,13 @@ function displayItem(item, container) {
 
 	if(item.status=='COMPLETED') {
 		if(item.splitted) {
-			actions = "<a href='#' data-toggle='modal' data-target='#download-cli'><i class='text-dark fa fa-download'> </i></a>";
+			actions = "<a href='#' data-toggle='modal' data-target='#download-cli'><i class='text-dark fa fa-download'> </i></a> <a href='#' onclick='javascript:remove(\"" + item.handle + "\", \"" + item.filename + "\");'><i class='text-danger fa fa-window-close'> </i></a>";
 		} else {
-			actions = "<a href='http://localhost:3000/retrieve?handle=" + item.handle + "'><i class='text-dark fa fa-download'> </i></a> <a href='#' onclick='javascript:remove(\"" + item.handle + "\");'><i class='text-danger fa fa-window-close'> </i></a>";
+			actions = "<a href='http://localhost:3000/retrieve?handle=" + item.handle + "'><i class='text-dark fa fa-download'> </i></a> <a href='#' onclick='javascript:remove(\"" + item.handle + "\", \"" + item.filename + "\");'><i class='text-danger fa fa-window-close'> </i></a>";
 		}
+	} else 
+	if(item.status=='ERROR') {
+		actions = "<a href='#' onclick='javascript:remove(\"" + item.handle + "\");'><i class='text-danger fa fa-window-close'> </i></a>";
 	}
 	
 	var repData = "";
@@ -111,9 +114,9 @@ function loadList() {
 	);
 }
 
-function remove(handle) {
+function remove(handle, filename) {
 	$.getJSON(
-    		'http://localhost:3000/remove?handle=' + handle, 
+    		'http://localhost:3000/remove?handle=' + handle + '&filename=' + filename, 
     		function(data) {
     			loadList();
 		}

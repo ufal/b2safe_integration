@@ -157,12 +157,14 @@ exports.replicate = function(req, res, db, config) {
 			res.send(response);
 		} else
 		if(stats.isDirectory()){			
-			fs.readdirSync(toReplicate).forEach(file => {
+			var files = fs.readdirSync(toReplicate);
+			for(var i in files) {
+				var file = files[i];
 				var fstat = fs.statSync(toReplicate + "/" + file);
 				if(fstat.isFile()) {
 					var response = replicateFile(handle, toReplicate + "/" + file, "", db, config);
 				}
-			});
+			}
 		}
 		
 	} else {
@@ -188,40 +190,146 @@ exports.getItemStatus = function(req, res, db, config) {
 	});	
 };
 
+function removeSingleFile(item, db, config, callback) {
+	
+	var handle2name = item.handle.replace("/", "_");
+	var f = item.filename.split("/");
+	f = f[f.length-1];
+	
+	loginController.getToken(db, config, async function(token) {
+		var options = {
+				encoding: null,
+				uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + f,
+				method: 'DELETE',
+				auth: {
+					'bearer': token
+				}
+		};
 
-exports.remove = function(req, res, db, config) {		
+		await rp(options)
+		.then(function (data) {
+			console.log(item.filename + " removed.");
+		})
+		.catch(function (error) {
+			console.log(item.filename + " ERROR " + error.statusCode);
+		});
+		
+		options = {
+				encoding: null,
+				uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name,
+				method: 'DELETE',
+				auth: {
+					'bearer': token
+				}
+		};
+		
+		await rp(options)
+		.then(function (data) {
+			console.log("folder " + item.handle + " removed.");
+			db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
+				callback(true);
+			});								
+		})
+		.catch(function (error) {
+			if(error.statusCode === 404) {
+				db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
+					callback(true);
+				});								
+			}
+		});		
+		
+	});
+
+}
+
+function removeSplittedFile(item, db, config, callback) {
 	
+	var handle2name = item.handle.replace("/", "_");
+	
+	loginController.getToken(db, config, async function(token) {
+		
+		for(var i in item.splitfiles) {
+			var splitfile = item.splitfiles[i];
+			
+			var options = {
+					encoding: null,
+					uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + splitfile.name,
+					method: 'DELETE',
+					auth: {
+						'bearer': token
+					}
+			};
+			
+			await rp(options)
+			.then(function (data) {
+				console.log(splitfile.name + " removed.");
+			})
+			.catch(function (error) {
+				console.log(splitfile.name + " ERROR " + error.statusCode);
+			});
+
+			
+		}
+		
+		var options = {
+				encoding: null,
+				uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name,
+				method: 'DELETE',
+				auth: {
+					'bearer': token
+				}
+		};
+		
+		await rp(options)
+		.then(function (data) {
+			console.log("folder " + item.handle + " removed.");
+			db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
+				callback(true);
+			});								
+		})
+		.catch(function (error) {
+			if(error.statusCode === 404) {
+				db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
+					callback(true);
+				});								
+			}
+		});
+		
+	});	
+}
+
+exports.remove = function(req, res, db, config) {
+	console.log("inside remove.");
 	var handle = req.query.handle;
+	var filename = req.query.filename;
 	
-	db.collection("item").findOne({'handle' : handle}, function(err, result) {
+	console.log(handle);
+	console.log(filename);
+	
+	db.collection("item").find({'handle' : handle}).toArray(function(err, items) {
 		if(err) {
 			res.send(err);
 		} else {
-			if(result) {
-				loginController.getToken(db, config, function(token) {					
-					var options = {
-							encoding: null,
-							uri: config.b2safe.url + '/api/registered' + result.replication_data.path,
-							method: 'DELETE',
-							auth: {
-								'bearer': token
-							}
-					};
-
-					rp(options)
-					.then(function (data) {						
-						db.collection("item").deleteOne({'handle' : handle}, function(err, del) {
+			if(items.length===1) {
+				var item = items[0];
+				if(item.splitted===1) {						
+					removeSplittedFile(item, db, config, function (success) {
+						if(success) {
 							res.send({response: "DELETED"});
-						});
-					})
-					.catch(function (error) {
-						console.log(error);
+						}
 					});
-				});				
+				} else {
+					removeSingleFile(item, db, config, function (success) {
+						if(success) {
+							res.send({response: "DELETED"});
+						}
+					});					
+				}				
 			} else {
-				res.send({response: "ERROR"});
+				
 			}
-		}		
-	});	
-		
-};
+			
+		}
+	});
+	
+}
