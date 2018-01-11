@@ -14,3 +14,7 @@ The server will start on port 3000. Update the port or use `PORT` environmental 
 
 To access the application go to http://localhost:3000/
 
+
+## Requirements
+
+- node version > 7.6
