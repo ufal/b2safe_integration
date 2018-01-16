@@ -9,6 +9,10 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.DataOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -75,6 +79,29 @@ public class App implements MessageListener {
             LOGGER.debug("no TextMessage received");
         }
         return msg;
+    }
+
+    private static void callReplicationService(String handle, String filePath) throws Exception {
+        String urlParameters  = "handle=" + handle + "&filename=" + filePath + "&checksum=";
+        byte[] postData       = urlParameters.getBytes(StandardCharsets.UTF_8);
+        int    postDataLength = postData.length;
+        String request        = "http://localhost:3000/replicate"; // hardcoded for testing
+        URL    url            = new URL( request );
+        HttpURLConnection conn= (HttpURLConnection) url.openConnection();
+        conn.setDoOutput(true);
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        conn.setRequestProperty( "Content-Length", Integer.toString(postDataLength));
+        conn.setUseCaches( false );
+        try( DataOutputStream wr = new DataOutputStream( conn.getOutputStream())) {
+            wr.write( postData );
+            wr.flush();
+            wr.close();
+        } catch(Exception e) {
+            LOGGER.error(e.getMessage());
+        }
+        int responseCode = conn.getResponseCode();
+        LOGGER.info("Response code " + responseCode);
     }
 
     public static void main(String[] args) {
