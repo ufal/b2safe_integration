@@ -2,14 +2,16 @@ package cz.cuni.mff.ufal;
 
 import javax.jms.*;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
+import com.hp.hpl.jena.rdf.model.*;
 import org.apache.activemq.ActiveMQConnection;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public class App implements MessageListener {
 
@@ -30,15 +32,6 @@ public class App implements MessageListener {
         connection.start();
     }
 
-    public String get(int timeout) throws JMSException {
-
-        Message message = messageConsumer.receive(timeout);
-        String msg = processMessage(message);
-        msg = "Hello " + msg + "!";
-        LOGGER.info(msg);
-        return msg;
-    }
-
     private String processMessage(Message message) throws JMSException {
         String msg = "";
         if (message != null && message instanceof TextMessage) {
@@ -50,6 +43,34 @@ public class App implements MessageListener {
             JsonElement je = jp.parse(text);
             msg = gson.toJson(je);
             LOGGER.debug("received message with text='{}'", msg);
+            JsonObject messageObject = je.getAsJsonObject();
+            String url = messageObject.getAsJsonPrimitive("id").getAsString();
+            String metadataUrl = url + "/fcr:metadata";
+            List<String> types = StreamSupport.stream(messageObject.getAsJsonArray("type").spliterator(),
+                    false).map(jsonElement -> jsonElement.getAsString()).collect(Collectors.toList());
+            List<String> eventTypes = StreamSupport.stream(messageObject.getAsJsonObject("wasGeneratedBy")
+                    .getAsJsonArray( "type").spliterator(), false).map(jsonElement -> jsonElement.getAsString())
+                    .collect(Collectors.toList());
+            if(types.contains("http://fedora.info/definitions/v4/repository#Binary") && eventTypes.contains("http://fedora.info/definitions/v4/event#ResourceCreation")){
+                Model model = ModelFactory.createDefaultModel();
+                model.read(metadataUrl,"Turtle");
+                StmtIterator iter = model.listStatements(new SimpleSelector(null, ResourceFactory.createProperty("http://www.ebu.ch/metadata/ontologies/ebucore/ebucore#filename"), (RDFNode)null));
+                while (iter.hasNext()){
+                    Statement statement = iter.nextStatement();
+                    RDFNode object = statement.getObject();
+                    if(object.isLiteral()){
+                        String filename = object.asLiteral().getString();
+                        LOGGER.debug("Got " + filename);
+                        break;
+                    }else {
+                        LOGGER.error("Don't know what to do - not a literal");
+                    }
+                }
+            }else {
+                LOGGER.debug(String.format("The types were %s and eventTypes %s", String.join(", ", types), String
+                        .join(", ", eventTypes)));
+            }
+
         } else {
             LOGGER.debug("no TextMessage received");
         }
@@ -62,7 +83,6 @@ public class App implements MessageListener {
         App m = new App();
         try {
             m.create("fedora");
-            //m.get(100_000_000);
         } catch (JMSException e) {
             e.printStackTrace();
         }
