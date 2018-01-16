@@ -1,13 +1,6 @@
 package cz.cuni.mff.ufal;
 
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.Session;
-import javax.jms.TextMessage;
-import javax.jms.Topic;
+import javax.jms.*;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -18,7 +11,7 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class App {
+public class App implements MessageListener {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(App.class);
     private Connection connection;
@@ -33,26 +26,33 @@ public class App {
         session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
         Topic topic = session.createTopic(topicName);
         messageConsumer = session.createDurableSubscriber(topic, "");
+        messageConsumer.setMessageListener(this);
         connection.start();
     }
 
     public String get(int timeout) throws JMSException {
 
         Message message = messageConsumer.receive(timeout);
+        String msg = processMessage(message);
+        msg = "Hello " + msg + "!";
+        LOGGER.info(msg);
+        return msg;
+    }
+
+    private String processMessage(Message message) throws JMSException {
         String msg = "";
-        if (message != null) {
+        if (message != null && message instanceof TextMessage) {
             TextMessage textMessage = (TextMessage) message;
             // retrieve the message content
             String text = textMessage.getText();
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             JsonParser jp = new JsonParser();
             JsonElement je = jp.parse(text);
-            LOGGER.debug("received message with text='{}'", gson.toJson(je));
-            msg = "Hello " + gson.toJson(je) + "!";
+            msg = gson.toJson(je);
+            LOGGER.debug("received message with text='{}'", msg);
         } else {
-            LOGGER.debug("no message received");
+            LOGGER.debug("no TextMessage received");
         }
-        LOGGER.info(msg);
         return msg;
     }
 
@@ -62,9 +62,18 @@ public class App {
         App m = new App();
         try {
             m.create("fedora");
-            m.get(100_000_000);
+            //m.get(100_000_000);
         } catch (JMSException e) {
             e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void onMessage(Message message) {
+        try {
+            processMessage(message);
+        }catch (JMSException e){
+            LOGGER.error(e.getMessage());
         }
     }
 }
