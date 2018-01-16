@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 
-var express = require('express');
-var MongoClient = require('mongodb').MongoClient;
-var config = require('config');
-var program = require('commander');
-var rp = require('request-promise');
-var fs = require('fs');
-var mime = require('mime-types');
-var md5File = require('md5-file');
-var loginController = require('../controllers/loginController');
-var spinner = require('cli-spinner').Spinner;
-var splitFile = require('split-file');
+const express = require('express');
+const MongoClient = require('mongodb').MongoClient;
+const config = require('config');
+const program = require('commander');
+const rp = require('request-promise');
+const fs = require('fs');
+const mime = require('mime-types');
+const md5File = require('md5-file');
+const loginController = require('../controllers/loginController');
+const spinner = require('cli-spinner').Spinner;
+const splitFile = require('split-file');
 
+const logger = require('../logger/logger');
 
 program
 	.option('-h, --handle <handle>', 'The handle of the item')
@@ -32,7 +33,7 @@ if(!handle || !output) {
 
 if (!fs.existsSync(output)) {
 	console.log('Output path not exists.');
-	process.exit(-1);
+	fs.mkdirSync(output);
 }
 
 var stats = fs.lstatSync(output);

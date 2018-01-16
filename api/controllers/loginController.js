@@ -1,7 +1,10 @@
-var querystring = require('querystring');
-var rp = require('request-promise');
+const querystring = require('querystring');
+const rp = require('request-promise');
+const logger = require('../logger/logger');
 
 function testToken (token, config, callback) {
+
+	logger.debug("function called loginController.testToken");	
 	
 	var options = {
 	      uri: config.b2safe.url + '/auth/b2safeproxy',
@@ -15,30 +18,38 @@ function testToken (token, config, callback) {
 	rp(options)
 		.then(function (data){
 			if(data.Meta.status === 200) {
-				callback(true);
+				callback(true, null);
 			} else {
-				callback(false);
+				callback(false, null);
 			}			
 		})
 		.catch(function (err) {
-			callback(false);	
+			callback(false, err);	
 		});	
 }
 
 
-async function updateToken(token, db, config) {	
-	await db.collection("user").update(
+function updateToken(token, db, config, callback) {	
+	
+	logger.debug("function called loginController.updateToken");
+	
+	db.collection("user").update(
 		{ 'username' : config.b2safe.username },
 		{
 			'username' : config.b2safe.username,
 			'token' : token
 		},
-		{ upsert: true }
+		{ upsert: true },
+		function (err, res) {
+			callback(res, err);
+		}
 	);
 }
 
 
-async function login(db, config, callback) {
+function login(db, config, callback) {
+	
+	logger.debug("function called loginController.login");
 	
 	var token = "";
 	var response = "";
@@ -53,37 +64,48 @@ async function login(db, config, callback) {
 	      json: true
 	};
 	
-	await rp(options)
+	rp(options)
 		.then(function (data){
-			console.log(data);
+			logger.debug(data);
 			if(data.Meta.status === 200) {
 				token = data.Response.data.token;
-				updateToken(token, db, config);
-				response = data;
-				console.log(token);
+				updateToken(token, db, config, function (res, err){
+					if(err) {
+						callback(res, err);
+					} else {
+						callback(data, null);
+					}
+				});				
 			} else {
-				response = data;
+				callback(null, data.Meta);
 			}			
 		})
 		.catch(function (err) {
-			response = err;			
+			callback(null, err);			
 		});
-		
-	callback(response);
 }
 
 exports.getToken = function(db, config, callback) {	
+	
+	logger.debug("function called loginController.getToken");
+	
 	db.collection('user').findOne({'username' : config.b2safe.username}, function(err, result) {
 		if(err) {
-			callback(err);
+			callback(null, err);
 		} else {
-			testToken(result.token, config, function(valid) {
+			testToken(result.token, config, function(valid, err) {
+				if(err) {
+					callback(null, err);
+				} else
 				if(valid) {
-					callback(result.token);
+					callback(result.token, null);
 				} else {
-					login(db, config, function(data) {
-						console.log(data.Response);
-						callback(data.Response.data.token);
+					login(db, config, function(data, err) {
+						if(err) {
+							callback(null, err);
+						} else{
+							callback(data.Response.data.token, null);
+						}						
 					});
 				}
 			});
@@ -91,8 +113,20 @@ exports.getToken = function(db, config, callback) {
 	});
 }
  
-exports.doLogin = function(req, res, db, config) {
-	login(db, config, function(response) {
-		res.send(response);
+exports.doLogin = function(req, res, db, config, callback=null) {
+	
+	logger.debug("function called loginController.doLogin");
+	
+	login(db, config, function(response, err) {
+		if(res) {
+			if(err) {
+				res.send(err);
+			} else {
+				res.send(response);
+			}
+		}
+		if(callback) {
+			callback(response, err);
+		}
 	});	
 };

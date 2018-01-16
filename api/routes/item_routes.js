@@ -1,4 +1,4 @@
-let itemController = require('../controllers/itemController');
+const itemController = require('../controllers/itemController');
 
 module.exports = function(app, db, config) {
 

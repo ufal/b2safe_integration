@@ -1,11 +1,16 @@
-var querystring = require('querystring');
-var rp = require('request-promise');
-var fs = require('fs');
-var mime = require('mime-types');
-var md5File = require('md5-file');
-var loginController = require('./loginController');
+const querystring = require('querystring');
+const rp = require('request-promise');
+const fs = require('fs');
+const mime = require('mime-types');
+const md5File = require('md5-file');
+const loginController = require('./loginController');
+const logger = require('../logger/logger');
+
 
 exports.listItems = function(req, res, db, config) {
+	
+	logger.debug("function called itemController.listItems");
+	
 	db.collection("item").aggregate([ {"$group" : {
 											"_id":"$handle",
 											"fileList": {
@@ -38,6 +43,8 @@ exports.listItems = function(req, res, db, config) {
 
 exports.retrieve = function(req, res, db, config) {
 	
+	logger.debug("function called itemController.retrieve");
+	
 	var handle = req.query.handle;
 	
 	db.collection("item").findOne({'handle' : handle}, function(err, result) {		
@@ -50,7 +57,7 @@ exports.retrieve = function(req, res, db, config) {
 					var handle2name = handle.replace("/", "_");
 					var f = result.replication_data.filename;
 					
-					loginController.getToken(db, config, function(token) {					
+					loginController.getToken(db, config, function(token, err) {					
 						var options = {
 								encoding: null,
 								uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + f,
@@ -74,7 +81,7 @@ exports.retrieve = function(req, res, db, config) {
 							
 						})
 						.catch(function (error) {
-							console.log(error);
+							logger.error(error);
 						});
 					});
 					
@@ -89,6 +96,9 @@ exports.retrieve = function(req, res, db, config) {
 }
 
 async function replicateFile(handle, fileToReplicate, userChecksum, db, config) {
+	
+	logger.debug("function called itemController.replicateFile");
+	
 	var response = {};
 	var checksum = md5File.sync(fileToReplicate);
 	var stats = fs.statSync(fileToReplicate);
@@ -127,6 +137,9 @@ async function replicateFile(handle, fileToReplicate, userChecksum, db, config) 
 }
 
 async function addToQueue(handle, fileToReplicate, filesize, checksum, userChecksum, db, config) {
+	
+	logger.debug("function called itemController.addToQueue");
+	
 	var response = {};
 	await db.collection("item").insertOne({'handle' : handle, 'filename' : fileToReplicate, 'filesize': filesize, 'checksum': checksum, 'user-checksum': userChecksum, 'status' : 'QUEUED'}, function(err, result) {
 		if(err) {
@@ -140,11 +153,13 @@ async function addToQueue(handle, fileToReplicate, filesize, checksum, userCheck
 
 exports.replicate = function(req, res, db, config) {
 	
+	logger.debug("function called itemController.replicate");
+	
 	var toReplicate = req.body.filename;
 	var handle = req.body.handle;
 	var userChecksum = req.body.checksum;
 	
-	console.log(handle + " " + toReplicate);
+	logger.debug(handle + " " + toReplicate);
 	
 	if(handle && toReplicate) {
 		
@@ -177,6 +192,8 @@ exports.replicate = function(req, res, db, config) {
 
 exports.getItemStatus = function(req, res, db, config) {
 	
+	logger.debug("function called itemController.getItemStatus");
+	
 	var handle = req.query.handle;
 	
 	db.collection("item").findOne({'handle' : handle}, function(err, result) {
@@ -194,11 +211,13 @@ exports.getItemStatus = function(req, res, db, config) {
 
 function removeSingleFile(item, db, config, callback) {
 	
+	logger.debug("function called itemController.removeSingleFile");
+	
 	var handle2name = item.handle.replace("/", "_");
 	var f = item.filename.split("/");
 	f = f[f.length-1];
 	
-	loginController.getToken(db, config, async function(token) {
+	loginController.getToken(db, config, async function(token, err) {
 		var options = {
 				encoding: null,
 				uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + f,
@@ -210,10 +229,10 @@ function removeSingleFile(item, db, config, callback) {
 
 		await rp(options)
 		.then(function (data) {
-			console.log(item.filename + " removed.");
+			logger.info(item.filename + " removed.");
 		})
 		.catch(function (error) {
-			console.log(item.filename + " ERROR " + error.statusCode);
+			logger.error(item.filename + " ERROR " + error.statusCode);
 		});
 		
 		options = {
@@ -227,7 +246,7 @@ function removeSingleFile(item, db, config, callback) {
 		
 		await rp(options)
 		.then(function (data) {
-			console.log("folder " + item.handle + " removed.");
+			logger.info("folder " + item.handle + " removed.");
 			db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
 				callback(true);
 			});								
@@ -246,9 +265,11 @@ function removeSingleFile(item, db, config, callback) {
 
 function removeSplittedFile(item, db, config, callback) {
 	
+	logger.debug("function called itemController.removeSplittedFile");
+	
 	var handle2name = item.handle.replace("/", "_");
 	
-	loginController.getToken(db, config, async function(token) {
+	loginController.getToken(db, config, async function(token, err) {
 		
 		for(var i in item.splitfiles) {
 			var splitfile = item.splitfiles[i];
@@ -264,10 +285,10 @@ function removeSplittedFile(item, db, config, callback) {
 			
 			await rp(options)
 			.then(function (data) {
-				console.log(splitfile.name + " removed.");
+				logger.info(splitfile.name + " removed.");
 			})
 			.catch(function (error) {
-				console.log(splitfile.name + " ERROR " + error.statusCode);
+				logger.error(splitfile.name + " ERROR " + error.statusCode);
 			});
 
 			
@@ -284,7 +305,7 @@ function removeSplittedFile(item, db, config, callback) {
 		
 		await rp(options)
 		.then(function (data) {
-			console.log("folder " + item.handle + " removed.");
+			logger.info("folder " + item.handle + " removed.");
 			db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
 				callback(true);
 			});								
@@ -301,12 +322,13 @@ function removeSplittedFile(item, db, config, callback) {
 }
 
 exports.remove = function(req, res, db, config) {
-	console.log("inside remove.");
+	
+	logger.debug("function called itemController.remove");
+	
 	var handle = req.query.handle;
 	var filename = req.query.filename;
 	
-	console.log(handle);
-	console.log(filename);
+	logger.debug(handle + " " + filename);
 	
 	db.collection("item").find({'handle' : handle}).toArray(function(err, items) {
 		if(err) {
