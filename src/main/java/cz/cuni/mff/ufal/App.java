@@ -57,6 +57,8 @@ public class App {
     }
 
     public static void main(String[] args) {
+        LOGGER.info("main started");
+        LOGGER.debug("debug is active");
         App m = new App();
         try {
             m.create("fedora");
