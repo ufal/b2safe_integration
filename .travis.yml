@@ -13,7 +13,6 @@ env:
 
 install:
   - npm install
-  - cp ./config/default.js.dist ./config/default.js
 
 script:
   - npm test
