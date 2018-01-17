@@ -242,47 +242,70 @@ function removeSingleFile(item, db, config, callback) {
 	var f = item.filename.split("/");
 	f = f[f.length-1];
 	
-	loginController.getToken(db, config, async function(token, err) {
-		var options = {
-				encoding: null,
-				uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + f,
-				method: 'DELETE',
-				auth: {
-					'bearer': token
-				}
-		};
-
-		await rp(options)
-		.then(function (data) {
-			logger.info(item.filename + " removed.");
-		})
-		.catch(function (error) {
-			logger.error(item.filename + " ERROR " + error.statusCode);
-		});
-		
-		options = {
-				encoding: null,
-				uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name,
-				method: 'DELETE',
-				auth: {
-					'bearer': token
-				}
-		};
-		
-		await rp(options)
-		.then(function (data) {
-			logger.info("folder " + item.handle + " removed.");
-			db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
-				callback(true);
-			});								
-		})
-		.catch(function (error) {
-			if(error.statusCode === 404) {
-				db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
-					callback(true);
-				});								
-			}
-		});		
+	loginController.getToken(db, config, function(token, err) {
+		if(err) {
+			callback(false, err);
+		} else {
+			let options = {
+					encoding: null,
+					uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + f,
+					method: 'DELETE',
+					auth: {
+						'bearer': token
+					}
+			};
+	
+			rp(options)
+			.then(function (data) {
+				
+				logger.debug(item.filename + " removed from b2safe server.");
+				
+				logger.debug("removing the folder ..");
+				
+				let options = {
+						encoding: null,
+						uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name,
+						method: 'DELETE',
+						auth: {
+							'bearer': token
+						}
+				};
+				
+				rp(options)
+				.then(function (data) {
+					logger.debug("folder " + item.handle + " removed.");
+					logger.debug("removing entry from local database ..");
+					db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
+						if(err) {
+							callback(false, err);
+						} else {
+							logger.debug("local database entry removed.");
+							callback(true, null);
+						}
+					});								
+				})
+				.catch(function (error) {
+					if(error.statusCode === 404) {
+						logger.debug("folder " + item.handle + " not exist on b2safe server.");	
+						logger.debug("removing entry from local database ..");
+						db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
+							if(err) {
+								callback(false, err);
+							} else {
+								logger.debug("local database entry removed.");
+								callback(true, null);
+							}
+						});								
+					}
+				});						
+				
+			})
+			.catch(function (err) {
+				logger.error(item.filename + " ERROR " + error.statusCode);
+				callback(false, err);
+			});
+						
+		}
 		
 	});
 
@@ -357,20 +380,55 @@ exports.remove = function(req, res, db, config) {
 	
 	db.collection("item").find({'handle' : handle}).toArray(function(err, items) {
 		if(err) {
+			logger.err(err);
 			res.send(err);
 		} else {
+						
 			if(items.length===1) {
-				var item = items[0];
+				logger.debug("itemController.remove single file");
+				var item = items[0];				
+				db.collection("item").updateOne(
+						{'handle' : item.handle, 'filename': item.filename},
+						{$set:
+							{
+								'status' : 'DELETING',
+								'start_time' : new Date().toISOString()
+							}
+						}
+					);			
+				
 				if(item.splitted===1) {						
-					removeSplittedFile(item, db, config, function (success) {
-						if(success) {
+					removeSplittedFile(item, db, config, function (response, err) {
+						if(response) {
 							res.send({response: "DELETED"});
+						} else {
+							db.collection("item").updateOne(
+									{'handle' : item.handle, 'filename': item.filename},
+									{$set:
+										{
+											'status' : 'ERROR',
+											'end_time' : new Date().toISOString(),
+											'replication_error': err
+										}
+									}
+								);							
 						}
 					});
 				} else {
-					removeSingleFile(item, db, config, function (success) {
-						if(success) {
+					removeSingleFile(item, db, config, function (response, err) {
+						if(response) {
 							res.send({response: "DELETED"});
+						} else {
+							db.collection("item").updateOne(
+									{'handle' : item.handle, 'filename': item.filename},
+									{$set:
+										{
+											'status' : 'ERROR',
+											'end_time' : new Date().toISOString(),
+											'replication_error': err
+										}
+									}
+								);							
 						}
 					});					
 				}				
