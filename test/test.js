@@ -10,10 +10,10 @@ chai.use(chaiHttp);
 
 describe('Api calls', function () {
 
-    describe('/alive', function () {
+    describe('/status', function () {
         it('it should GET alive', (done) => {
             chai.request(server)
-                .get('/alive')
+                .get('/status')
                 .end((err, res) => {
                     res.should.have.status(200);
                     res.body.should.be.a('object');
