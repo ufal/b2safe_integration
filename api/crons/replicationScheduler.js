@@ -6,7 +6,7 @@ const datetime = require('node-datetime');
 const splitFile = require('split-file');
 const mime = require('mime-types');
 const md5File = require('md5-file');
-
+const path = require('path');
 const logger = require('../logger/logger');
 
 
@@ -257,12 +257,12 @@ function doReplicate(item, token, db, config) {
 		splitReplicate(item, token, db, config);
 		return;
 	}
-	
-	var f = item.filename.split("/");
-	f = f[f.length-1];
-	
+
+	// in the form of a HANDLE/BASENAME
+	var arg_path = item.handle.replace("/", "_") + "/" + path.basename(item.filename);
+
 	var options = {
-			uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + item.handle.replace("/", "_") + "/" + f,
+			uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + arg_path,
 			method: 'PUT',
 			auth: {
 				'bearer': token
