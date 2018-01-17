@@ -2,21 +2,27 @@ const querystring = require('querystring');
 const rp = require('request-promise');
 const logger = require('../logger/logger');
 
-function testToken (token, config, callback) {
+function testToken(token, config, callback) {
 
 	logger.debug("function called loginController.testToken");	
+	logger.debug(token);
 	
 	var options = {
 	      uri: config.b2safe.url + '/auth/b2safeproxy',
 	      method: 'GET',
+	      timeout: 30000,
 	      auth: {
               'bearer': token
 	      },
 	      json: true
 	};
-		
+	
+	logger.debug("calling /auth/b2safeproxy");
+	
 	rp(options)
 		.then(function (data){
+			logger.debug("loginController.testToken rp->callback");
+			logger.debug(data.Meta.status);
 			if(data.Meta.status === 200) {
 				callback(true, null);
 			} else {
@@ -24,6 +30,7 @@ function testToken (token, config, callback) {
 			}			
 		})
 		.catch(function (err) {
+			logger.error(err);
 			callback(false, err);	
 		});	
 }
@@ -94,12 +101,16 @@ exports.getToken = function(db, config, callback) {
 			callback(null, err);
 		} else {
 			testToken(result.token, config, function(valid, err) {
-				if(err) {
+				logger.debug("loginController.getToken->testToken->callback");
+				if(err) {					
+					logger.debug("loginController.getToken->testToken->callback - error");
 					callback(null, err);
 				} else
 				if(valid) {
+					logger.debug("loginController.getToken->testToken->callback - token is valid");
 					callback(result.token, null);
 				} else {
+					logger.debug("loginController.getToken->testToken->callback - token is not valid");
 					login(db, config, function(data, err) {
 						if(err) {
 							callback(null, err);

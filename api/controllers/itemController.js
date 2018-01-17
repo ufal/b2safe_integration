@@ -95,7 +95,21 @@ exports.retrieve = function(req, res, db, config) {
 	});
 }
 
-async function replicateFile(handle, fileToReplicate, userChecksum, db, config) {
+function addToQueue(handle, fileToReplicate, filesize, checksum, userChecksum, db, config, callback) {
+	
+	logger.debug("function called itemController.addToQueue");
+	
+	var response = {};
+	db.collection("item").insertOne({'handle' : handle, 'filename' : fileToReplicate, 'filesize': filesize, 'checksum': checksum, 'user-checksum': userChecksum, 'status' : 'QUEUED'}, function(err, result) {
+		if(err) {
+			callback(null, {status: "ERROR", replication_error: err});
+		} else {
+			callback({response: "QUEUED"}, null);
+		}
+	});
+}
+
+function replicateFile(handle, fileToReplicate, userChecksum, db, config, callback) {
 	
 	logger.debug("function called itemController.replicateFile");
 	
@@ -105,50 +119,59 @@ async function replicateFile(handle, fileToReplicate, userChecksum, db, config) 
 	var filesize = stats.size / 1000000; // file size in megabytes
 	
 	if(userChecksum){
+		logger.debug("checksum = " + checksum);
 		if(checksum !== userChecksum) {
-			await db.collection("item").insertOne({'handle' : handle, 'filename' : fileToReplicate, 'filesize': filesize, 'checksum': checksum, 'user-checksum': userChecksum, 'status' : 'ERROR', 'replication_error': {'checksum-error': 'User provided checksum did not match with the file checksum'}}, function(err, result) {
+			db.collection("item").insertOne({'handle' : handle, 'filename' : fileToReplicate, 'filesize': filesize, 'checksum': checksum, 'user-checksum': userChecksum, 'status' : 'ERROR', 'replication_error': {'checksum-error': 'User provided checksum did not match with the file checksum'}}, function(err, result) {
 				if(err) {				
-					response = {status: "ERROR", replication_error: err};
+					callback(null, {status: "ERROR", replication_error: err});
 				} else {
-					response = {status: "checksum error"};
+					callback(null, response = {status: "checksum error"});
 				}
 			});
-			return response;
 		}
 	}
 	
-	await db.collection("item").findOne({'handle' : handle, 'filename': fileToReplicate}, function(err, result) {		
+	db.collection("item").findOne({'handle' : handle, 'filename': fileToReplicate}, function(err, item) {		
 		if(err) {
+			logger.error(err);
 			response = {status: "ERROR", replication_error: err};
 		} else {
-			if(result) {
-				if(result.status === 'QUEUED') {
-					response = {response: "ALREADY QUEUED"};
+			if(item) {
+				if(item.status === 'QUEUED' || item.status === 'IN PROGRESS') {
+					logger.debug("Already in progress.");
+					callback({response: item.status}, null);
 				} else {
-					response = {response: result.status};
+					logger.debug(item.status);
+					logger.debug("requeue.");		
+					
+					db.collection("item").updateOne(
+							{'handle' : item.handle, 'filename': item.filename},
+							{$set:
+								{
+									'status' : 'QUEUED',
+									'checksum': checksum,
+									'replication_error': null,
+									'start_time' : null
+								}
+							},
+							function(err, res){
+								if(err) {
+									callback({status: "ERROR", replication_error: err}, err);
+								} else {
+									callback({response: 'QUEUED'}, null);
+								}
+							}
+						);
 				}
 			} else {
-				response = addToQueue(handle, fileToReplicate, filesize, checksum, userChecksum, db, config);
+				logger.debug("adding to queue.");				
+				addToQueue(handle, fileToReplicate, filesize, checksum, userChecksum, db, config, function(response, error){
+					callback(response, error);
+				});
 			}
 		}
 				
-	});	
-	return response;
-}
-
-async function addToQueue(handle, fileToReplicate, filesize, checksum, userChecksum, db, config) {
-	
-	logger.debug("function called itemController.addToQueue");
-	
-	var response = {};
-	await db.collection("item").insertOne({'handle' : handle, 'filename' : fileToReplicate, 'filesize': filesize, 'checksum': checksum, 'user-checksum': userChecksum, 'status' : 'QUEUED'}, function(err, result) {
-		if(err) {
-			response = {status: "ERROR", replication_error: err};
-		} else {
-			response = {response: "QUEUED"};
-		}
-	});	
-	return response;
+	});
 }
 
 exports.replicate = function(req, res, db, config) {
@@ -164,14 +187,16 @@ exports.replicate = function(req, res, db, config) {
 	if(handle && toReplicate) {
 		
 		if(!fs.existsSync(toReplicate)) {
+			logger.error("Uploaded path not exist");
 			res.send({response: "Uploaded path not exist"});
 		}
 		
 		var stats = fs.statSync(toReplicate);
 		
 		if(stats.isFile()) {
-			var response = replicateFile(handle, toReplicate, userChecksum, db, config);
-			res.send(response);
+			replicateFile(handle, toReplicate, userChecksum, db, config, function (response, err) {
+				res.send(response);
+			});
 		} else
 		if(stats.isDirectory()){			
 			var files = fs.readdirSync(toReplicate);

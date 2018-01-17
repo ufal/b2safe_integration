@@ -15,58 +15,70 @@ function createFolder(item, db, config, callback) {
 	logger.debug("function called replicationScheduler.createFolder");
 	
 	loginController.getToken(db, config, function(token, err) {
+		
+		if(err) {
+			db.collection("item").updateOne(
+					{'handle' : item.handle, 'filename': item.filename},
+					{$set: {
+						'status' : 'ERROR',
+						'end_time' : new Date().toISOString(),
+						'replication_error': err }
+					});			
+		} else {
 
-		var handle2name = item.handle.replace("/", "_");
-
-		var options = {
-				uri: config.b2safe.url + '/api/registered/' + config.b2safe.path + "/" + handle2name,
-				method: 'HEAD',
-				auth: {
-					'bearer': token
-				},
-				json: true,
-				resolveWithFullResponse: true
-		};
-
-		rp(options)
-		.then(function (response) {
-			logger.debug("folder exists : " + response.statusCode);
-			// folder already exists
-			callback(item, token, db, config);			
-		})
-		.catch(function (error) {
-			logger.debug("folder not found : " + error.statusCode);
-			if(error.statusCode === 404) { // folder not found
-
-				var options = {
-						uri: config.b2safe.url + '/api/registered?path=' + config.b2safe.path + "/" + handle2name,
-						method: 'POST',
-						auth: {
-							'bearer': token
-						},
-						json: true
-				};
-
-				rp(options)
-				.then(function (data) {			
-					callback(item, token, db, config);
-				})
-				.catch(function (error) {
-					if (error.statusCode === 400) { // folder already exists
+			var handle2name = item.handle.replace("/", "_");
+	
+			var options = {
+					uri: config.b2safe.url + '/api/registered/' + config.b2safe.path + "/" + handle2name,
+					method: 'HEAD',
+					auth: {
+						'bearer': token
+					},
+					json: true,
+					resolveWithFullResponse: true
+			};
+	
+			rp(options)
+			.then(function (response) {
+				logger.debug("folder exists : " + response.statusCode);
+				// folder already exists
+				callback(item, token, db, config);			
+			})
+			.catch(function (error) {
+				logger.debug("folder not found : " + error.statusCode);
+				if(error.statusCode === 404) { // folder not found
+	
+					var options = {
+							uri: config.b2safe.url + '/api/registered?path=' + config.b2safe.path + "/" + handle2name,
+							method: 'POST',
+							auth: {
+								'bearer': token
+							},
+							json: true
+					};
+	
+					rp(options)
+					.then(function (data) {			
 						callback(item, token, db, config);
-					} else {
-						db.collection("item").updateOne(
-								{'handle' : item.handle, 'filename': item.filename},
-								{$set: {
-									'status' : 'ERROR',
-									'end_time' : new Date().toISOString(),
-									'replication_error': data.Response.errors }
-								});						
-					}
-				});
-
-			}
-		});
+					})
+					.catch(function (error) {
+						if (error.statusCode === 400) { // folder already exists
+							callback(item, token, db, config);
+						} else {
+							db.collection("item").updateOne(
+									{'handle' : item.handle, 'filename': item.filename},
+									{$set: {
+										'status' : 'ERROR',
+										'end_time' : new Date().toISOString(),
+										'replication_error': data.Response.errors }
+									});						
+						}
+					});
+	
+				}
+			});
+		
+		}
 
 	});	
 }
