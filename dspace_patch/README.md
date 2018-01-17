@@ -4,14 +4,11 @@ This patch will add ItemModifyB2SafeConsumer to dspace that will send item modif
 
 Install DSpace see https://github.com/ufal/clarin-dspace for help
 
-Clone the patch repository :
-`https://github.com/ufal/b2safe_dspace_patch.git`
-
 Goto the DSpace source and apply patch
 
 cd [DSPACE_SOURCE]
 
-`sudo git apply [PATCH_repository_path]/b2safe-dspace.patch`
+`sudo git apply [b2safe_integration_repository_path]/dspace_patch/b2safe-dspace.patch`
 
 Add ItemModifyB2SafeConsumer to the dspace.cfg 
 
