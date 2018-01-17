@@ -1,0 +1,300 @@
+diff --git a/dspace-api/src/main/java/cz/cuni/mff/ufal/dspace/b2safe/ItemModifyB2SafeConsumer.java b/dspace-api/src/main/java/cz/cuni/mff/ufal/dspace/b2safe/ItemModifyB2SafeConsumer.java
+new file mode 100644
+index 0000000..4f07a14
+--- /dev/null
++++ b/dspace-api/src/main/java/cz/cuni/mff/ufal/dspace/b2safe/ItemModifyB2SafeConsumer.java
+@@ -0,0 +1,294 @@
++/**
++ * Institute of Formal and Applied Linguistics
++ * Charles University, Czech Republic
++ * 
++ * http://ufal.mff.cuni.cz
++ * 
++ */
++
++package cz.cuni.mff.ufal.dspace.b2safe;
++
++import java.util.ArrayList;
++import java.util.List;
++
++import org.dspace.content.Item;
++import org.dspace.core.Constants;
++import org.dspace.core.Context;
++import org.dspace.event.Consumer;
++import org.dspace.event.Event;
++
++import org.apache.log4j.Logger;
++import org.dspace.authorize.AuthorizeManager;
++import org.dspace.content.Metadatum;
++import org.dspace.content.DSpaceObject;
++import org.dspace.content.ItemIterator;
++import org.dspace.content.packager.DSpaceAIPDisseminator;
++import org.dspace.content.packager.PackageParameters;
++import org.dspace.core.ConfigurationManager;
++import org.dspace.core.Constants;
++import org.dspace.core.Context;
++import org.dspace.eperson.EPerson;
++import org.dspace.handle.HandleManager;
++
++import java.io.DataOutputStream;
++import java.io.File;
++import java.io.IOException;
++import java.net.HttpURLConnection;
++import java.net.URI;
++import java.net.URL;
++import java.nio.charset.StandardCharsets;
++import java.sql.SQLException;
++import java.util.ArrayList;
++import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Properties;
++
++/**
++ *
++ * These lines should be added to dspace.cfg for the consumer to become active:
++ * 
++ * #consumer to maintain the browse index
++ * event.consumer.b2safe.class = cz.cuni.mff.ufal.dspace.b2safe.ItemModifyConsumer
++ * event.consumer.b2safe.filters = Community|Collection|Item+Create|Modify
++ * 
++ * 
++ */
++public class ItemModifyB2SafeConsumer implements Consumer {
++	
++	
++	static Logger log = Logger.getLogger(ItemModifyB2SafeConsumer.class);
++	
++	final private List<String> updatedHandles = new ArrayList<String>();
++
++	public void initialize() throws Exception {
++
++	}
++
++	public void consume(Context context, Event event) throws Exception {
++		
++		
++		log.info("ItemModifyB2SafeConsumer.consume is called.");
++		
++		int subjectType = event.getSubjectType();
++		int eventType = event.getEventType();
++
++		switch (subjectType) {
++
++		// If an Item is created or its metadata is modified..
++		case Constants.ITEM:
++			if (eventType == Event.MODIFY) {
++				Item item = (Item) event.getSubject(context);
++				if (item != null) {
++					// replicate if necessary
++					try {
++						String handle = item.getHandle();
++						if (handle == null) {
++							// e.g., during submission
++							return;
++						}
++
++						if (updatedHandles.contains(handle)) {
++							return;
++						}
++
++						updatedHandles.add(handle);
++
++						// testing again just to be sure
++						// force overwrite
++						
++						replicate(handle);
++
++
++					} catch (Exception e) {
++						// non public - in logs
++					}
++				}
++			}
++			break;
++		default:
++			break;
++		}
++
++	}
++	
++	public boolean replicate(String handle) throws Exception {
++
++		log.info("ItemModifyB2SafeConsumer.replicate is called with handle " + handle);
++		
++		Context context = null;
++		File file = null;
++		try {
++
++			context = new Context();
++			Item item = (Item) HandleManager.resolveToObject(context, handle);
++			
++			context.turnOffAuthorisationSystem();
++
++			if (handle == null) {
++				handle = item.getHandle();
++			}
++
++			if (handle == null) {
++				return false;
++			}
++
++			// prepare AIP
++			file = getTemporaryFile(handleToFileName(handle));
++
++			new DSpaceAIPDisseminator().disseminate(context, item, new PackageParameters(), file);
++			
++
++			// AIP failure
++			if (!file.exists()) {
++				throw new IOException(String.format("AIP package has not been created [%s]", file.getCanonicalPath()));
++			} else {
++				log.info("ItemModifyB2SafeConsumer AIP generated " + file.getCanonicalPath());
++			}
++			
++			callReplicationService(handle, file.getAbsolutePath());
++			
++			
++		} catch (Exception e) {
++		}finally {
++			if(file != null){				
++			}
++		}
++
++		try {
++			if (context != null) {
++				context.restoreAuthSystemState();
++				context.complete();
++			}
++		} catch (SQLException e) {
++		}	
++		
++		return true;
++	}
++	
++	private static File getTemporaryFile(String fileName) throws IOException {
++		File file = new File(System.getProperty("java.io.tmpdir") + File.separator + fileName);
++		if (file.exists()) {
++			if (!file.delete()) {
++				return null;
++			}
++		}
++		file.createNewFile();
++		return file;
++	}	
++	
++    public static String handleToFileName(String handle) {
++    		return handle.replace( "/", "_" ) + ".zip";
++    }	
++	
++	public static boolean isReplicatable(String handle){
++		Context context = null;
++		boolean ret = false;
++		try{
++			context = new Context();
++			Item item = (Item)HandleManager.resolveToObject(context, handle);
++			ret = isReplicatable(item);
++		}catch (SQLException e){
++
++		}
++		if(context != null) {
++			context.abort();
++		}
++		return ret;
++	}	
++	
++	/**
++	 * Must be PUB without embargo.
++	 * @param item
++	 * @return
++	 */
++	public static boolean isReplicatable(Item item) {
++		
++		Context context = null;
++		
++		try {
++			
++			context = new Context();
++
++			// not even public
++			if (!isPublic(item)) {
++				return false;
++			}
++
++			// embargoes
++			String embargoLiftField = ConfigurationManager.getProperty("embargo.field.lift");
++			if(embargoLiftField!=null && !embargoLiftField.isEmpty()) {
++				Metadatum[] mdEmbargo = item.getMetadataByMetadataString(embargoLiftField);
++				if(mdEmbargo!=null && mdEmbargo.length>0) {
++					return false;
++				}				
++			}
++				
++			// archived and withdrawn
++			if (!item.isArchived() || item.isWithdrawn()) {
++				return false;
++			}
++
++			// is authorised
++			AuthorizeManager.authorizeAction(context, item, Constants.READ);
++			
++		} catch (Exception e) {
++			log.error(e);
++			return false;
++		} finally {
++			try {
++				context.complete();
++			}catch(Exception e){
++				
++			}
++		}
++
++		// passed all tests
++		return true;
++	}
++
++	private static boolean isPublic(Item i) {
++		Metadatum[] pub_dc = i.getMetadata("dc", "rights", "label", Item.ANY);
++		if (pub_dc.length > 0) {
++			for (Metadatum dc : pub_dc) {
++				if (dc.value.equals("PUB")) {
++					return true;
++				}
++			}
++		}
++		return false;
++	}
++	
++	private static void callReplicationService(String handle, String filePath) throws Exception {
++		log.info("ItemModifyB2SafeConsumer.callReplicationService is called");
++		String request = "http://localhost:3000/replicate";
++		String postData = "handle=" + handle + "&filename=" + filePath + "&checksum=";		
++		URL url = new URL(request);		
++		HttpURLConnection conn= (HttpURLConnection) url.openConnection();
++		conn.setDoOutput(true);
++		conn.setUseCaches(false);
++		conn.setRequestMethod("POST");
++		conn.setRequestProperty("User-Agent", "Mozilla/5.0");
++		conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
++
++		try( DataOutputStream wr = new DataOutputStream(conn.getOutputStream())) {
++		   wr.writeBytes(postData);
++		   wr.flush();
++		   wr.close();
++		} catch(Exception e) {
++			log.error(e);
++		}
++		int responseCode = conn.getResponseCode();
++		log.info("Response code " + responseCode);
++		conn.disconnect();
++		
++	}
++
++	public void end(Context ctx) {
++		updatedHandles.clear();
++	}
++
++	public void finish(Context ctx) {
++	}
++
++}

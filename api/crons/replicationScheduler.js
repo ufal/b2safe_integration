@@ -1,78 +1,91 @@
-var querystring = require('querystring');
-var rp = require('request-promise');
-var loginController = require('../controllers/loginController');
-var path = require('path');
-var fs = require('fs');
-var datetime = require('node-datetime');
-var splitFile = require('split-file');
-var mime = require('mime-types');
-var md5File = require('md5-file');
+const querystring = require('querystring');
+const rp = require('request-promise');
+const loginController = require('../controllers/loginController');
+const fs = require('fs');
+const datetime = require('node-datetime');
+const splitFile = require('split-file');
+const mime = require('mime-types');
+const md5File = require('md5-file');
+const path = require('path');
+const logger = require('../logger/logger');
 
 
 function createFolder(item, db, config, callback) {
 
-	console.log("In create folder");
+	logger.debug("function called replicationScheduler.createFolder");
 	
-	loginController.getToken(db, config, function(token) {
+	loginController.getToken(db, config, function(token, err) {
+		
+		if(err) {
+			db.collection("item").updateOne(
+					{'handle' : item.handle, 'filename': item.filename},
+					{$set: {
+						'status' : 'ERROR',
+						'end_time' : new Date().toISOString(),
+						'replication_error': err }
+					});			
+		} else {
 
-		var handle2name = item.handle.replace("/", "_");
-
-		var options = {
-				uri: config.b2safe.url + '/api/registered/' + config.b2safe.path + "/" + handle2name,
-				method: 'HEAD',
-				auth: {
-					'bearer': token
-				},
-				json: true,
-				resolveWithFullResponse: true
-		};
-
-		rp(options)
-		.then(function (response) {
-			console.log("folder creation response : " + response.statusCode);
-			// folder already exists
-			callback(item, token, db, config);			
-		})
-		.catch(function (error) {
-			console.log("folder creation catch : " + error.statusCode);
-			if(error.statusCode === 404) { // folder not found
-
-				var options = {
-						uri: config.b2safe.url + '/api/registered?path=' + config.b2safe.path + "/" + handle2name,
-						method: 'POST',
-						auth: {
-							'bearer': token
-						},
-						json: true
-				};
-
-				rp(options)
-				.then(function (data) {			
-					callback(item, token, db, config);
-				})
-				.catch(function (error) {
-					if (error.statusCode === 400) { // folder already exists
+			var handle2name = item.handle.replace("/", "_");
+	
+			var options = {
+					uri: config.b2safe.url + '/api/registered/' + config.b2safe.path + "/" + handle2name,
+					method: 'HEAD',
+					auth: {
+						'bearer': token
+					},
+					json: true,
+					resolveWithFullResponse: true
+			};
+	
+			rp(options)
+			.then(function (response) {
+				logger.debug("folder exists : " + response.statusCode);
+				// folder already exists
+				callback(item, token, db, config);			
+			})
+			.catch(function (error) {
+				logger.debug("folder not found : " + error.statusCode);
+				if(error.statusCode === 404) { // folder not found
+	
+					var options = {
+							uri: config.b2safe.url + '/api/registered?path=' + config.b2safe.path + "/" + handle2name,
+							method: 'POST',
+							auth: {
+								'bearer': token
+							},
+							json: true
+					};
+	
+					rp(options)
+					.then(function (data) {			
 						callback(item, token, db, config);
-					} else {
-						db.collection("item").updateOne(
-								{'handle' : item.handle, 'filename': item.filename},
-								{$set: {
-									'status' : 'ERROR',
-									'end_time' : new Date().toISOString(),
-									'replication_error': data.Response.errors }
-								});						
-					}
-				});
-
-			}
-		});
+					})
+					.catch(function (error) {
+						if (error.statusCode === 400) { // folder already exists
+							callback(item, token, db, config);
+						} else {
+							db.collection("item").updateOne(
+									{'handle' : item.handle, 'filename': item.filename},
+									{$set: {
+										'status' : 'ERROR',
+										'end_time' : new Date().toISOString(),
+										'replication_error': data.Response.errors }
+									});						
+						}
+					});
+	
+				}
+			});
+		
+		}
 
 	});	
 }
 
 function splitReplicate(item, token, db, config) {
 	
-	console.log("In split replication.");
+	logger.debug("function called replicationScheduler.splitReplicate");
 	
 	db.collection("item").updateOne( {'handle' : item.handle, 'filename': item.filename}, { $set: { 'splitted': 1 }});
 	
@@ -87,7 +100,7 @@ function splitReplicate(item, token, db, config) {
 			  			  
 			  var name = names[i];
 			  
-			  console.log(name);			  
+			  logger.debug(name);			  
 
 			  var start_time = new Date().toISOString();
 				  
@@ -115,7 +128,7 @@ function splitReplicate(item, token, db, config) {
 			  
 				await rp(options)
 					.then(function (data) {
-						console.log(data);
+						logger.debug(data);
 						var end_time = new Date().toISOString();
 						if(data.Meta.status === 200) {
 							var serverchecksum = data.Response.data.checksum;
@@ -159,7 +172,7 @@ function splitReplicate(item, token, db, config) {
 						}			
 					})
 					.catch(function (err) {
-						console.log(err);
+						logger.error(err);
 						db.collection("item").updateOne(
 							{'handle' : item.handle, 'filename': item.filename},
 							{$addToSet: {
@@ -236,10 +249,11 @@ function splitReplicate(item, token, db, config) {
 
 function doReplicate(item, token, db, config) {	
 	
+	logger.debug("function called replicationScheduler.doReplicate");
+	
 	var filesize = item.filesize;
-	console.log(filesize);
 	if(parseInt(filesize) >= parseInt(config.b2safe.maxfilesize)) {
-		console.log("Its a big file .. splitting.");
+		logger.debug("Its a big file " + filesize + " .. splitting.");
 		splitReplicate(item, token, db, config);
 		return;
 	}
@@ -263,7 +277,7 @@ function doReplicate(item, token, db, config) {
 
 	rp(options)
 	.then(function (data) {
-		console.log(data);
+		logger.debug(data);
 		if(data.Meta.status === 200) {
 			var checksum = item.checksum;
 			var serverchecksum = data.Response.data.checksum;
@@ -287,7 +301,7 @@ function doReplicate(item, token, db, config) {
 		}			
 	})
 	.catch(function (err) {
-		console.log(err);
+		logger.error(err);
 		db.collection("item").updateOne(
 				{'handle' : item.handle, 'filename': item.filename},
 				{$set:
@@ -302,13 +316,16 @@ function doReplicate(item, token, db, config) {
 
 
 exports.run = function(db, config, callback) {
+	
+	logger.debug("function called replicationScheduler.run");
+	
 	db.collection("item").find({status : "QUEUED"}).toArray(function(err, items) {
 		if(err) {
-			console.log(err);
+			logger.error(err);
 		} else {
 			if(items.length>0) {
 
-				console.log(items.length + " item(s) are available for replication.")
+				logger.info(items.length + " item(s) are available for replication.")
 
 				for(var i in items) {
 					var item = items[i];
@@ -322,14 +339,14 @@ exports.run = function(db, config, callback) {
 							},
 							function(err, res) {
 								if(err) {
-									console.log(err);
+									logger.error(err);
 								} else {
 									createFolder(item, db, config, doReplicate);
 								}
 							});
 				}
 			} else {				
-				console.log("Nothing to replicate");				
+				logger.debug("Nothing to replicate");				
 			}
 		}
 	});
