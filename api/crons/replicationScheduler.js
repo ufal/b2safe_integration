@@ -72,7 +72,7 @@ function createFolder(item, db, config, callback) {
 									{$set: {
 										'status' : 'ERROR',
 										'end_time' : new Date().toISOString(),
-										'replication_error': data.Response.errors }
+										'replication_error': error.Response.errors }
 									});						
 						}
 					});
@@ -85,34 +85,71 @@ function createFolder(item, db, config, callback) {
 	});	
 }
 
-function splitReplicate(item, token, db, config) {
+function splitReplicateFinalize(item, names, splitverified, error, error_msg, db, config) {
+	for(var i in names) {
+		var name = names[i];
+		fs.unlinkSync(name);
+	}		  
 
-	logger.debug("function called replicationScheduler.splitReplicate");
+	if(error) {
+		db.collection("item").updateOne(
+				{'handle' : item.handle, 'filename': item.filename},
+				{$set:
+				{
+					'status' : 'ERROR',
+					'end_time' : new Date().toISOString(),
+					'replication_error': error_msg
+				}
+				});
 
-	db.collection("item").updateOne( {'handle' : item.handle, 'filename': item.filename}, { $set: { 'splitted': 1 }});
+	} else {
 
-	splitFile.splitFileBySize(item.filename, parseInt(config.b2safe.maxfilesize) * 1000 * 1000)
-	.then( async (names) => {
+		db.collection("item").updateOne(
+				{'handle' : item.handle, 'filename': item.filename},
+				{$set:
+				{
+					'verified' : splitverified,
+					'status' : 'COMPLETED',
+					'end_time' : new Date().toISOString()
+				}
+				});			  
+	}	
+}
 
-		var error = false;
-		var splitverified = true;
-		var error_msg = "";
+function splitReplicatePartial(item, names, index, db, config, splitverified, callback) {
+	
+	logger.debug("function called replicationScheduler.splitReplicatePartial");
+	
+	if(index >= names.length) {
+		logger.debug("replicationScheduler.splitReplicatePartial " + item.filename + " completed.");
+		callback(item, names, splitverified, false, null, db, config);
+		return;
+	}
+	
+	var name = names[index];
+	logger.debug(name);
+	
+	loginController.getToken(db, config, function(token, err) {
 
-		for(var i in names) {
-
-			var name = names[i];
-
-			logger.debug(name);			  
-
+		if(err) {
+			db.collection("item").updateOne(
+					{'handle' : item.handle, 'filename': item.filename},
+					{$set: {
+						'status' : 'ERROR',
+						'end_time' : new Date().toISOString(),
+						'replication_error': err }
+					});			
+		} else {
+	
 			var start_time = new Date().toISOString();
-
+		
 			var checksum = md5File.sync(name);
 			var stats = fs.statSync(name);
 			var filesize = stats.size / 1000000; // file size in megabytes
-
+		
 			var f = path.basename(name);
 			var handle2name = item.handle.replace("/", "_");
-
+		
 			var options = {
 					uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + f,
 					method: 'PUT',
@@ -126,16 +163,14 @@ function splitReplicate(item, token, db, config) {
 					},			      
 					json: true
 			};
-
-
-			await rp(options)
+			
+			rp(options)
 			.then(function (data) {
 				logger.debug(data);
 				var end_time = new Date().toISOString();
 				if(data.Meta.status === 200) {
 					var serverchecksum = data.Response.data.checksum;
 					var verified = checksum === serverchecksum;
-					splitverified = splitverified && verified;
 					db.collection("item").updateOne(
 							{'handle' : item.handle, 'filename': item.filename},
 							{$addToSet: {
@@ -150,6 +185,11 @@ function splitReplicate(item, token, db, config) {
 									'replication_data': data.Response.data
 								}
 							}
+							},
+							function(err, res) {
+								if(!err) {
+									splitReplicatePartial(item, names, index+1, db, config, splitverified && verified, callback);							
+								} 
 							}
 					);						
 				} else {
@@ -169,8 +209,9 @@ function splitReplicate(item, token, db, config) {
 							}
 							}
 					);
-					error = true;
-					error_msg = data.Response.errors;
+					
+					callback(item, names, splitverified, true, data.Response.errors, db, config);
+					
 				}			
 			})
 			.catch(function (err) {
@@ -183,58 +224,31 @@ function splitReplicate(item, token, db, config) {
 								'name' : name,
 								'status': 'ERROR',
 								'start_time': start_time,
-								'end_time': end_time,
+								'end_time': new Date().toISOString(),
 								'replication_error': err
 							}
 						}
 						}
 				);
-				error = true;
-				error_msg = err;						
-			});
-
-			if (error) break;
-
+				callback(item, names, splitverified, true, err, db, config);
+			});	
 		}
+	});
+}
 
-		for(var i in names) {
-			var name = names[i];
-			fs.unlinkSync(name);
-		}		  
+function splitReplicate(item, token, db, config) {
 
-		if(error) {
-			db.collection("item").updateOne(
-					{'handle' : item.handle, 'filename': item.filename},
-					{$set:
-					{
-						'status' : 'ERROR',
-						'end_time' : new Date().toISOString(),
-						'replication_error': error_msg
-					}
-					});
+	logger.debug("function called replicationScheduler.splitReplicate");
 
-		} else {
+	db.collection("item").updateOne( {'handle' : item.handle, 'filename': item.filename}, { $set: { 'splitted': 1 }});
 
-			options = {
-					uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + item.handle.replace("/", "_"),
-					method: 'GET',
-					auth: {
-						'bearer': token
-					},
-					json: true
-			};
+	splitFile.splitFileBySize(item.filename, parseInt(config.b2safe.maxfilesize) * 1000 * 1000)
+	.then(function (names){
 
-			db.collection("item").updateOne(
-					{'handle' : item.handle, 'filename': item.filename},
-					{$set:
-					{
-						'verified' : splitverified,
-						'status' : 'COMPLETED',
-						'end_time' : new Date().toISOString()
-					}
-					});			  
-		}
+		var splitverified = true;
+		var error_msg = "";
 
+		splitReplicatePartial(item, names, 0, db, config, true, splitReplicateFinalize);
 
 	}).catch((err) => {
 		db.collection("item").updateOne(
@@ -325,7 +339,9 @@ function doReplicate(item, token, db, config) {
 
 exports.run = function(db, config, callback) {
 
-	if(processing) return;
+	if(processing) {
+		return;
+	}
 
 	processing = true;
 
