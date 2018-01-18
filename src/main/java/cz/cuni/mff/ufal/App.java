@@ -41,8 +41,10 @@ public class App implements MessageListener {
     public App(Configuration config){
         replicationServiceUrl = config.getString("replication.service.url",
                 "http://localhost:3000/replicate");
+        LOGGER.debug("replication.service.url" + replicationServiceUrl);
         assetstorePath = config.getString("assetstore.path",
                 "./");
+        LOGGER.debug("assetstore.path=" + assetstorePath);
 
     }
 
