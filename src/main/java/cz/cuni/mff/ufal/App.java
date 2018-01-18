@@ -20,6 +20,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -113,7 +115,7 @@ public class App implements MessageListener {
                 if(isNotBlank(filename) && isNotBlank(sha1)){
                     try {
                         //TODO cleanup
-                        Path dir = Files.createTempDirectory(sha1);
+                        Path dir = Files.createTempDirectory(sha1, PosixFilePermissions.fromString("rwxrwxrwx");
                         LOGGER.debug("Created " + dir.toString());
                         Path metadata = dir.resolve("metadata.ttl");
                         Path file = dir.resolve(filename);
