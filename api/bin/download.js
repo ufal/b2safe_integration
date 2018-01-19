@@ -15,7 +15,7 @@ const splitFile = require('split-file');
 const logger = require('../logger/logger');
 
 program
-.option('-h, --handle <handle>', 'The handle of the item')
+.option('-hdl, --handle <handle>', 'The handle of the item')
 .option('-o, --output <output>', 'The path of the output folder')
 .action(function() {
     console.log('handle: %s output: %s',

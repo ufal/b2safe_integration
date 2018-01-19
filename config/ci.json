@@ -7,7 +7,8 @@
         "maxfilesize": 1000        
     },
     "replicationCronJob" :{
-        "timer":  "*/10 * * * * *"
+        "timer":  "*/10 * * * * *",
+        "bandwidth": 10
     },    
     "db" : {
         "url" : "mongodb://localhost:27017/"

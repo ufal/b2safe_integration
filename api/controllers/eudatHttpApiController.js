@@ -1,14 +1,11 @@
 const rp = require('request-promise');
-const fs = require('fs');
-const mime = require('mime-types');
-const loginController = require('./loginController');
 const logger = require('../logger/logger');
 
 
 exports.remove = function (location, token, config, callback) {
-    
-    logger.debug("eudatHttpApiController.remove called.");
-    
+
+    logger.trace();
+
     let options = {
             encoding: null,
             uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + location,
@@ -17,7 +14,7 @@ exports.remove = function (location, token, config, callback) {
                 'bearer': token
             }
     };
-    
+
     rp(options)
     .then(function (data) {
         logger.debug(data);
@@ -27,12 +24,12 @@ exports.remove = function (location, token, config, callback) {
         logger.error(error);
         callback(null, error);
     });    
-    
+
 }
 
 exports.createFolder = function (location, token, config, callback) {
-    
-    logger.debug("eudatHttpApiController.createFolder called.");
+
+    logger.trace();
     
     let options = {
             uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + location,
@@ -75,8 +72,118 @@ exports.createFolder = function (location, token, config, callback) {
                     callback(null, error);
                 }
             });
-
+        } else {
+            callback(null, error);
         }
     }); 
+
+}
+
+exports.putFile = function (stream, location, force, pid_await, token, config, callback) {
+
+    logger.trace();
+    
+    var options = {
+            uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + location,
+            method: 'PUT',
+            auth: {
+                'bearer': token
+            },
+            formData: {
+                'file' :  stream,
+                'pid_await': pid_await.toString(),
+                'force': force.toString()
+            },                
+            json: true
+    };
+
+    rp(options)
+    .then(function (data) {
+        logger.debug(data);
+        callback(data, null);
+    })
+    .catch(function (error) {
+        logger.error(error);
+        callback(null, error);
+    });    
+}
+
+exports.downloadFile = function (location, token, config, callback) {
+
+    logger.trace();
+
+    var options = {
+            encoding: null,
+            uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + location,
+            method: 'GET',
+            auth: {
+                'bearer': token
+            },
+            formData: {
+                'download' :  "true"
+            },      
+    };
+
+    rp(options)
+    .then(function (data) {
+        logger.debug(data);
+        callback(data, null);
+    })
+    .catch(function (error) {
+        logger.error(error);
+        callback(null, error);
+    });    
+}
+
+exports.testToken = function (token, config, callback) {
+
+    logger.trace();
+
+    var options = {
+            uri: config.b2safe.url + '/auth/b2safeproxy',
+            method: 'GET',
+            timeout: 30000,
+            auth: {
+                'bearer': token
+            },
+            json: true
+    };
+
+    rp(options)
+    .then(function (data){
+        logger.debug(data);
+        callback(data, null);
+    })
+    .catch(function (error) {
+        logger.error(error);        
+        callback(null, error);
+    });
+
+}
+
+
+exports.authenticate = function (config, callback) {
+
+    logger.trace();
+
+    var options = {
+            uri: config.b2safe.url + '/auth/b2safeproxy',
+            method: 'POST',
+            formData: {
+                'username' : config.b2safe.username,
+                'password': config.b2safe.password,
+            },
+            json: true
+    };
+
+    rp(options)
+    .then(function (data){
+        logger.debug(data);
+        callback(data, null);
+    })
+    .catch(function (error) {
+        logger.error(error);        
+        callback(null, error);
+    });
     
 }

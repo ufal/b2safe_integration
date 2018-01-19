@@ -1,44 +1,24 @@
-const querystring = require('querystring');
-const rp = require('request-promise');
 const logger = require('../logger/logger');
+const b2safeAPI = require('../controllers/eudatHttpApiController');
 
 function testToken(token, config, callback) {
 
-    logger.debug("function called loginController.testToken");	
-    logger.debug(token);
+    logger.trace();
 
-    var options = {
-            uri: config.b2safe.url + '/auth/b2safeproxy',
-            method: 'GET',
-            timeout: 30000,
-            auth: {
-                'bearer': token
-            },
-            json: true
-    };
-
-    logger.debug("calling /auth/b2safeproxy");
-
-    rp(options)
-    .then(function (data){
-        logger.debug("loginController.testToken rp->callback");
-        logger.debug(data.Meta.status);
-        if(data.Meta.status === 200) {
-            callback(true, null);
+    b2safeAPI.testToken(token, config, function(data, error) {
+        if(error) {
+            callback(false, error);            
         } else {
-            callback(false, null);
-        }			
-    })
-    .catch(function (err) {
-        logger.error(err);
-        callback(false, err);	
-    });	
+            callback(true, null);            
+        }
+    });
+
 }
 
 
 function updateToken(token, db, config, callback) {	
 
-    logger.debug("function called loginController.updateToken");
+    logger.trace();
 
     db.collection("user").update(
             { 'username' : config.b2safe.username },
@@ -47,8 +27,8 @@ function updateToken(token, db, config, callback) {
                 'token' : token
             },
             { upsert: true },
-            function (err, res) {
-                callback(res, err);
+            function (error, response) {
+                callback(response, error);
             }
     );
 }
@@ -56,67 +36,51 @@ function updateToken(token, db, config, callback) {
 
 function login(db, config, callback) {
 
-    logger.debug("function called loginController.login");
+    logger.trace();
 
     var token = "";
     var response = "";
 
-    var options = {
-            uri: config.b2safe.url + '/auth/b2safeproxy',
-            method: 'POST',
-            formData: {
-                'username' : config.b2safe.username,
-                'password': config.b2safe.password,
-            },
-            json: true
-    };
-
-    rp(options)
-    .then(function (data){
-        logger.debug(data);
-        if(data.Meta.status === 200) {
+    b2safeAPI.authenticate(config, function(data, error) {
+        if(error) {
+            callback(null, error);           
+        } else {
             token = data.Response.data.token;
-            updateToken(token, db, config, function (res, err){
-                if(err) {
-                    callback(res, err);
+            updateToken(token, db, config, function (response, error){
+                if(error) {
+                    callback(response, error);
                 } else {
                     callback(data, null);
                 }
-            });				
-        } else {
-            callback(null, data.Meta);
-        }			
-    })
-    .catch(function (err) {
-        callback(null, err);			
+            });
+        }
     });
 }
 
 exports.getToken = function(db, config, callback) {	
 
-    logger.debug("function called loginController.getToken");
+    logger.trace();
 
-    db.collection('user').findOne({'username' : config.b2safe.username}, function(err, result) {
-        if(err) {
-            callback(null, err);
+    db.collection('user').findOne({'username' : config.b2safe.username}, function(error, response) {
+        if(error) {
+            callback(null, error);
         } else {
-            testToken(result.token, config, function(valid, err) {
-                logger.debug("loginController.getToken->testToken->callback");
-                if(err) {					
-                    logger.debug("loginController.getToken->testToken->callback - error");
-                    callback(null, err);
+            testToken(response.token, config, function(valid, error) {
+                if(error) {					
+                    logger.error(error);
+                    callback(null, error);
                 } else
                     if(valid) {
-                        logger.debug("loginController.getToken->testToken->callback - token is valid");
-                        callback(result.token, null);
+                        logger.debug("token is valid");
+                        callback(response.token, null);
                     } else {
-                        logger.debug("loginController.getToken->testToken->callback - token is not valid");
-                        login(db, config, function(data, err) {
-                            if(err) {
-                                callback(null, err);
+                        logger.debug("token is not valid");
+                        login(db, config, function(data, error) {
+                            if(error) {
+                                callback(null, error);
                             } else{
                                 callback(data.Response.data.token, null);
-                            }						
+                            }					
                         });
                     }
             });
@@ -126,18 +90,18 @@ exports.getToken = function(db, config, callback) {
 
 exports.doLogin = function(req, res, db, config, callback=null) {
 
-    logger.debug("function called loginController.doLogin");
+    logger.trace();
 
-    login(db, config, function(response, err) {
+    login(db, config, function(response, error) {
         if(res) {
-            if(err) {
-                res.send(err);
+            if(error) {
+                res.send(error);
             } else {
                 res.send(response);
             }
         }
         if(callback) {
-            callback(response, err);
+            callback(response, error);
         }
     });	
 };

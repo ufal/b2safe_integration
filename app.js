@@ -1,12 +1,12 @@
 const express = require('express');
 const MongoClient = require('mongodb').MongoClient;
 const bodyParser = require('body-parser');
-const config = require('config');
+const morgan = require('morgan');
 const cron = require('node-cron');
+const config = require('config');
+const logger = require('./api/logger/logger');
 const rs = require('./api/crons/replicationScheduler');
 const loginController = require('./api/controllers/loginController');
-const logger = require('./api/logger/logger');
-const morgan = require('morgan');
 
 const app = express();
 
@@ -26,6 +26,9 @@ app.use(bodyParser.json());
 require('./api/routes')(app, null, config);
 
 function initialize(db, config, callback) {
+    
+    logger.trace();
+    
     db.listCollections({name: "item"})
     .next(function(err, collinfo) {
         if (collinfo) {
@@ -42,7 +45,7 @@ function initialize(db, config, callback) {
             } else {
                 logger.debug('Creating "user" collection.');
                 db.createCollection('user');
-                logger.debug('Updaing the token');
+                logger.debug('Updating the token');
                 loginController.getToken(db, config, function (token, err) {
                     if(err) {
                         callback(err);
@@ -57,6 +60,9 @@ function initialize(db, config, callback) {
 }
 
 MongoClient.connect(config.db.url, function(err, database) {
+    
+    logger.trace();
+    
     if (err) { return console.log(err); }
 
     require('./api/routes')(app, database, config);
