@@ -1,103 +1,125 @@
 <html>
 <head>
-  
-<link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"> 
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+
+<link rel="stylesheet" type="text/css"
+	href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet"
+	href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css"
+	integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb"
+	crossorigin="anonymous">
+
+<script src="https://code.jquery.com/jquery-3.2.1.min.js"
+	integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+	crossorigin="anonymous"></script>
 
 <script
-  src="https://code.jquery.com/jquery-3.2.1.min.js"
-  integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
-  crossorigin="anonymous"></script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.3/umd/popper.min.js" integrity="sha384-vFJXuSJphROIrBnz7yo7oB41mKfc8JzQZiCq4NCceLEaO4IHwicKwpJf9c9IpFgh" crossorigin="anonymous"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js" integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ" crossorigin="anonymous"></script>
+	src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.3/umd/popper.min.js"
+	integrity="sha384-vFJXuSJphROIrBnz7yo7oB41mKfc8JzQZiCq4NCceLEaO4IHwicKwpJf9c9IpFgh"
+	crossorigin="anonymous"></script>
+<script
+	src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js"
+	integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ"
+	crossorigin="anonymous"></script>
 
 <style type="text/css">
-	.popover{
-         display: table;
-	}
+.popover {
+	display: table;
+}
 </style>
 
 <script src="/script.js"></script>
-  
+
 </head>
 <body>
 
-<nav class="navbar navbar-dark bg-dark">
-  <div class="navbar-brand"><b>EUDAT-B2STAGE HTTP-API CLARIN Integration</b></div>
-</nav>
+	<nav class="navbar navbar-dark bg-dark">
+		<div class="navbar-brand">
+			<b>EUDAT-B2STAGE HTTP-API CLARIN Integration</b>
+		</div>
+	</nav>
 
-<div class="container">
-	<div class="card" style="margin: 10px; min-height: 400px;">
-	  <div class="card-header">
-	    <strong>Item List</strong><a class="pull-right" href="#" onclick="javascript:loadList();"><i class="fa fa-refresh"> </i></a>
-	  </div>	
-	  <div class="card-body">
-	  	<table class="table table-bordered" >
-		<thead>
-			    <tr>
-			      <th scope="col">Handle</th>
-			      <th scope="col">Checksum</th>
-			      <th scope="col">Size</th>
-			      <th scope="col">Updated on</th>
-			      <th scope="col">Status</th>
-			      <th scope="col">Actions</th>
-			    </tr>
-			  </thead>
-  			<tbody id="item_list"></tbody>	  	
-	  	</table>
-	  </div>
+	<div class="container">
+		<div class="card" style="margin: 10px; min-height: 400px;">
+			<div class="card-header">
+				<strong>Item List</strong><a class="pull-right" href="#"
+					onclick="javascript:loadList();"><i class="fa fa-refresh">
+				</i></a>
+			</div>
+			<div class="card-body">
+				<table class="table table-bordered">
+					<thead>
+						<tr>
+							<th scope="col">Handle</th>
+							<th scope="col">Checksum</th>
+							<th scope="col">Size</th>
+							<th scope="col">Updated on</th>
+							<th scope="col">Status</th>
+							<th scope="col">Actions</th>
+						</tr>
+					</thead>
+					<tbody id="item_list"></tbody>
+				</table>
+			</div>
+		</div>
+
+		<div class="card" style="margin: 10px;">
+			<div class="card-header">
+				<strong>Upload Item</strong>
+			</div>
+			<div class="card-body">
+				<form>
+
+					<div class="form-group">
+						<label for="handle">Item Handle</label> <input type="text"
+							class="form-control" id="handle" placeholder="Enter Item Handle">
+					</div>
+
+					<div class="form-group">
+						<label for="file">File Path on Server</label> <input type="text"
+							class="form-control" id="file" placeholder="Enter File Path">
+					</div>
+
+					<div class="form-group">
+						<label for="checksum">File Checksum</label> <input type="text"
+							class="form-control" id="checksum" placeholder="File Checksum">
+					</div>
+
+					<button type="submit" class="btn btn-primary" id="upload">Submit</button>
+
+					<div class="modal fade" id="download-cli" tabindex="-1"
+						role="dialog" aria-labelledby="download-cli-lbl"
+						aria-hidden="true">
+						<div class="modal-dialog" role="document">
+							<div class="modal-content">
+								<div class="modal-header">
+									<h5 class="modal-title" id="download-cli-lbl">Command Line
+										Download Instructions</h5>
+									<button type="button" class="close" data-dismiss="modal"
+										aria-label="Close">
+										<span aria-hidden="true">&times;</span>
+									</button>
+								</div>
+								<div class="modal-body" style="font-size: 12px;">
+									<div style="margin-bottom: 5px;">Run the following
+										command on server to download the file:</div>
+									<div class="alert alert-info">
+										<strong>./api/bin/download.js --handle &lt;handle&gt;
+											--output &lt;output-folder&gt;</strong>
+									</div>
+								</div>
+								<div class="modal-footer">
+									<button type="button" class="btn btn-secondary"
+										data-dismiss="modal">Close</button>
+								</div>
+							</div>
+						</div>
+					</div>
+
+				</form>
+			</div>
+		</div>
+
 	</div>
-	
-	<div class="card" style="margin: 10px;">
-	  <div class="card-header">
-	    <strong>Upload Item</strong>
-	  </div>
-	  <div class="card-body">
-	<form>
-
-	  <div class="form-group">
-	    <label for="handle">Item Handle</label>
-	    <input type="text" class="form-control" id="handle" placeholder="Enter Item Handle">
-	  </div>
-  
-	  <div class="form-group">
-	    <label for="file">File Path on Server</label>
-	    <input type="text" class="form-control" id="file" placeholder="Enter File Path">
-	  </div>
-
-	  <div class="form-group">
-	    <label for="checksum">File Checksum</label>
-	    <input type="text" class="form-control" id="checksum" placeholder="File Checksum">
-	  </div>
-
-  	  <button type="submit" class="btn btn-primary" id="upload">Submit</button>
-  	  
-	<div class="modal fade" id="download-cli" tabindex="-1" role="dialog" aria-labelledby="download-cli-lbl" aria-hidden="true">
-	  <div class="modal-dialog" role="document">
-	    <div class="modal-content">
-	      <div class="modal-header">
-	        <h5 class="modal-title" id="download-cli-lbl">Command Line Download Instructions</h5>
-	        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-	          <span aria-hidden="true">&times;</span>
-	        </button>
-	      </div>
-	      <div class="modal-body" style="font-size: 12px;">
-	      	<div style="margin-bottom: 5px;">Run the following command on server to download the file:</div>
-	      	<div class="alert alert-info"><strong>./api/bin/download.js --handle &lt;handle&gt; --output &lt;output-folder&gt;</strong></div>
-	      </div>
-	      <div class="modal-footer">
-	        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-	      </div>
-	    </div>
-	  </div>
-	</div>
-  	  
-	</form>	  	
-	  </div>
-	</div>  
-	  
-</div>
 
 </body>
 

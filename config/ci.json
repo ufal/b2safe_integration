@@ -4,11 +4,11 @@
         "username" : "",
         "password" : "",
         "path" : "",
-		"maxfilesize": 1000        
+        "maxfilesize": 1000        
     },
-	"replicationCronJob" :{
-		"timer":  "*/10 * * * * *"
-	},    
+    "replicationCronJob" :{
+        "timer":  "*/10 * * * * *"
+    },    
     "db" : {
         "url" : "mongodb://localhost:27017/"
     }

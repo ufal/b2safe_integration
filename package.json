@@ -1,42 +1,42 @@
 {
-  "name": "b2safe_integration",
-  "version": "1.0.0",
-  "description": "HTTP API integration with digital repositories at CLARIN",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ufal/b2safe_integration.git"
-  },
-  "main": "index.js",
-  "scripts": {
-    "start": "nodemon $NODE_DEBUG_OPTION server.js",
-    "test": "mocha"
-  },
-  "author": "Amir Kamran",
-  "license": "MIT",
-  "devDependencies": {
-    "chai": "^4.1.2",
-    "chai-http": "^3.0.0",
-    "mocha": "^3.3.0",
-    "nodemon": "^1.12.1"
-  },
-  "dependencies": {
-    "body-parser": "^1.18.2",
-    "cli-spinner": "^0.2.7",
-    "commander": "^2.12.2",
-    "config": "^1.28.1",
-    "ejs": "^2.5.7",
-    "express": "^4.16.2",
-    "md5-file": "^3.2.3",
-    "mime-types": "^2.1.17",
-    "mongoose": "^4.13.0",
-    "morgan": "^1.9.0",
-    "node-cron": "^1.2.1",
-    "node-datetime": "^2.0.3",
-    "promise": "^8.0.1",
-    "request": "^2.83.0",
-    "request-promise": "^4.2.2",
-    "split-file": "^2.1.0",
-    "tar": "^4.1.1",
-    "winston": "^2.4.0"
-  }
+    "name": "b2safe_integration",
+    "version": "1.0.0",
+    "description": "HTTP API integration with digital repositories at CLARIN",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ufal/b2safe_integration.git"
+    },
+    "main": "index.js",
+    "scripts": {
+        "start": "nodemon $NODE_DEBUG_OPTION server.js",
+        "test": "mocha"
+    },
+    "author": "Amir Kamran",
+    "license": "MIT",
+    "devDependencies": {
+        "chai": "^4.1.2",
+        "chai-http": "^3.0.0",
+        "mocha": "^3.3.0",
+        "nodemon": "^1.12.1"
+    },
+    "dependencies": {
+        "body-parser": "^1.18.2",
+        "cli-spinner": "^0.2.7",
+        "commander": "^2.12.2",
+        "config": "^1.28.1",
+        "ejs": "^2.5.7",
+        "express": "^4.16.2",
+        "md5-file": "^3.2.3",
+        "mime-types": "^2.1.17",
+        "mongoose": "^4.13.0",
+        "morgan": "^1.9.0",
+        "node-cron": "^1.2.1",
+        "node-datetime": "^2.0.3",
+        "promise": "^8.0.1",
+        "request": "^2.83.0",
+        "request-promise": "^4.2.2",
+        "split-file": "^2.1.0",
+        "tar": "^4.1.1",
+        "winston": "^2.4.0"
+    }
 }

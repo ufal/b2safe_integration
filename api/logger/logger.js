@@ -11,7 +11,7 @@ const logger = new winston.Logger({
                 return (new Date()).toISOString();
             }
         })
-    ]
+        ]
 });
 
 winston.addColors({

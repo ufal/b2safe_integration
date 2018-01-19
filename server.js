@@ -3,7 +3,7 @@ const port = process.env.PORT || 3000;
 const logger = require('./api/logger/logger');
 
 app.listen(port, function() {
-	logger.info('Server started on: ' + port);
+    logger.info('Server started on: ' + port);
 });
 
 module.exports = app;
