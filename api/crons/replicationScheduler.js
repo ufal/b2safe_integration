@@ -8,6 +8,7 @@ const mime = require('mime-types');
 const md5File = require('md5-file');
 const path = require('path');
 const logger = require('../logger/logger');
+const b2safeAPI = require('../controllers/eudatHttpApiController');
 
 var processing = false;
 
@@ -16,70 +17,33 @@ function createFolder(item, db, config, callback) {
     logger.debug("function called replicationScheduler.createFolder");
     logger.debug("createFolder " + item.handle);
 
-    loginController.getToken(db, config, function(token, err) {
+    loginController.getToken(db, config, function(token, error) {
 
-        if(err) {
+        if(error) {
             db.collection("item").updateOne(
                     {'handle' : item.handle, 'filename': item.filename},
                     {$set: {
                         'status' : 'ERROR',
                         'end_time' : new Date().toISOString(),
-                        'replication_error': err }
+                        'replication_error': error }
                     });			
         } else {
 
             var handle2name = item.handle.replace("/", "_");
 
-            var options = {
-                    uri: config.b2safe.url + '/api/registered/' + config.b2safe.path + "/" + handle2name,
-                    method: 'HEAD',
-                    auth: {
-                        'bearer': token
-                    },
-                    json: true,
-                    resolveWithFullResponse: true
-            };
-
-            rp(options)
-            .then(function (response) {
-                logger.debug("folder exists : " + response.statusCode);
-                // folder already exists
-                callback(item, token, db, config);			
-            })
-            .catch(function (error) {
-                logger.debug("folder not found : " + error.statusCode);
-                if(error.statusCode === 404) { // folder not found
-
-                    var options = {
-                            uri: config.b2safe.url + '/api/registered?path=' + config.b2safe.path + "/" + handle2name,
-                            method: 'POST',
-                            auth: {
-                                'bearer': token
-                            },
-                            json: true
-                    };
-
-                    rp(options)
-                    .then(function (data) {			
-                        callback(item, token, db, config);
-                    })
-                    .catch(function (error) {
-                        if (error.statusCode === 400) { // folder already exists
-                            callback(item, token, db, config);
-                        } else {
-                            db.collection("item").updateOne(
-                                    {'handle' : item.handle, 'filename': item.filename},
-                                    {$set: {
-                                        'status' : 'ERROR',
-                                        'end_time' : new Date().toISOString(),
-                                        'replication_error': error.Response.errors }
-                                    });						
-                        }
-                    });
-
+            b2safeAPI.createFolder(handle2name, token, config, function(data, error) {
+                if(error) {
+                    db.collection("item").updateOne(
+                            {'handle' : item.handle, 'filename': item.filename},
+                            {$set: {
+                                'status' : 'ERROR',
+                                'end_time' : new Date().toISOString(),
+                                'replication_error': error.Response.errors }
+                            });
+                } else {
+                    callback(item, token, db, config);
                 }
             });
-
         }
 
     });	
@@ -116,13 +80,13 @@ function splitReplicateFinalize(item, names, splitverified, error, error_msg, db
     }	
 }
 
-function splitReplicatePartial(item, names, index, db, config, splitverified, callback) {
+function splitReplicatePartial(item, names, index, splitverified, db, config) {
 
     logger.debug("function called replicationScheduler.splitReplicatePartial");
 
     if(index >= names.length) {
         logger.debug("replicationScheduler.splitReplicatePartial " + item.filename + " completed.");
-        callback(item, names, splitverified, false, null, db, config);
+        splitReplicateFinalize(item, names, splitverified, false, null, db, config);
         return;
     }
 
@@ -188,7 +152,7 @@ function splitReplicatePartial(item, names, index, db, config, splitverified, ca
                             },
                             function(err, res) {
                                 if(!err) {
-                                    splitReplicatePartial(item, names, index+1, db, config, splitverified && verified, callback);							
+                                    splitReplicatePartial(item, names, index+1, splitverified && verified, db, config);							
                                 } 
                             }
                     );						
@@ -210,7 +174,7 @@ function splitReplicatePartial(item, names, index, db, config, splitverified, ca
                             }
                     );
 
-                    callback(item, names, splitverified, true, data.Response.errors, db, config);
+                    splitReplicateFinalize(item, names, splitverified, true, data.Response.errors, db, config);
 
                 }			
             })
@@ -230,7 +194,7 @@ function splitReplicatePartial(item, names, index, db, config, splitverified, ca
                         }
                         }
                 );
-                callback(item, names, splitverified, true, err, db, config);
+                splitReplicateFinalize(item, names, splitverified, true, err, db, config);
             });	
         }
     });
@@ -248,7 +212,7 @@ function splitReplicate(item, token, db, config) {
         var splitverified = true;
         var error_msg = "";
 
-        splitReplicatePartial(item, names, 0, db, config, true, splitReplicateFinalize);
+        splitReplicatePartial(item, names, 0, true, db, config);
 
     }).catch((err) => {
         db.collection("item").updateOne(

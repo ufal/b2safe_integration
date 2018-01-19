@@ -11,7 +11,7 @@ module.exports = function(app, db, config) {
     });
 
     app.get('/itemstatus', function(req, res) {
-        itemController.getItemStatus(req, res, db, config);
+        itemController.status(req, res, db, config);
     });
 
     app.get('/retrieve', function(req, res) {

@@ -5,95 +5,8 @@ const mime = require('mime-types');
 const md5File = require('md5-file');
 const loginController = require('./loginController');
 const logger = require('../logger/logger');
+const b2safeAPI = require('./eudatHttpApiController');
 
-
-exports.listItems = function(req, res, db, config) {
-
-    logger.debug("function called itemController.listItems");
-
-    db.collection("item").aggregate([ {"$group" : {
-        "_id":"$handle",
-        "fileList": {
-            "$push" : {
-                "handle": "$handle",
-                "filename": "$filename",
-                "filesize": "$filesize",
-                "splitted": "$splitted",
-                "splitfiles": "$splitfiles",
-                "checksum": "$checksum",
-                "user-checksum": "$user-checksum",
-                "verified": "$verified",
-                "status": "$status",
-                "start_time": "$start_time",
-                "end_time": "$end_time",
-                "replication_data": "$replication_data",
-                "replication_error": "$replication_error"
-            }
-        }, 
-        "count": {"$sum": 1}
-    }} ],
-    function(err, items) {
-        if (err) {
-            res.send(err);					
-        } else {
-            res.send(items);
-        }
-    });
-};
-
-exports.retrieve = function(req, res, db, config) {
-
-    logger.debug("function called itemController.retrieve");
-
-    var handle = req.query.handle;
-
-    db.collection("item").findOne({'handle' : handle}, function(err, result) {		
-        if(err) {
-            res.send(err);
-        } else {
-            if(result) {
-                if(result.status === 'COMPLETED') {
-
-                    var handle2name = handle.replace("/", "_");
-                    var f = result.replication_data.filename;
-
-                    loginController.getToken(db, config, function(token, err) {					
-                        var options = {
-                                encoding: null,
-                                uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + f,
-                                method: 'GET',
-                                auth: {
-                                    'bearer': token
-                                },
-                                formData: {
-                                    'download' :  "true"
-                                },		
-                        };
-
-                        rp(options)
-                        .then(function (data) {
-                            res.writeHead(200, {"Transfer-Encoding": "chunked",
-                                "Content-Type" : mime.lookup(f),
-                                "Content-Disposition" : "attachment; filename=" + f
-                            });
-                            res.write(data, 'binary');
-                            res.end();
-
-                        })
-                        .catch(function (error) {
-                            logger.error(error);
-                        });
-                    });
-
-                } else {
-                    res.send({response: result.status});
-                }
-            } else {
-                res.send({respnose: 404});
-            }
-        }
-    });
-}
 
 function addToQueue(handle, fileToReplicate, filesize, checksum, userChecksum, db, config, callback) {
 
@@ -113,7 +26,6 @@ function replicateFile(handle, fileToReplicate, userChecksum, db, config, callba
 
     logger.debug("function called itemController.replicateFile");
 
-    var response = {};
     var checksum = md5File.sync(fileToReplicate);
     var stats = fs.statSync(fileToReplicate);
     var filesize = stats.size / 1000000; // file size in megabytes
@@ -125,7 +37,7 @@ function replicateFile(handle, fileToReplicate, userChecksum, db, config, callba
                 if(err) {				
                     callback(null, {status: "ERROR", replication_error: err});
                 } else {
-                    callback(null, response = {status: "checksum error"});
+                    callback(null, {status: "checksum error"});
                 }
             });
         }
@@ -134,7 +46,7 @@ function replicateFile(handle, fileToReplicate, userChecksum, db, config, callba
     db.collection("item").findOne({'handle' : handle, 'filename': fileToReplicate}, function(err, item) {		
         if(err) {
             logger.error(err);
-            response = {status: "ERROR", replication_error: err};
+            callback(null, {status: "ERROR", replication_error: err});
         } else {
             if(item) {
                 if(item.status === 'QUEUED' || item.status === 'IN PROGRESS') {
@@ -174,48 +86,191 @@ function replicateFile(handle, fileToReplicate, userChecksum, db, config, callba
     });
 }
 
-exports.replicate = function(req, res, db, config) {
+function removeSingleFile(item, db, config, callback) {
 
-    logger.debug("function called itemController.replicate");
+    logger.debug("function called itemController.removeSingleFile");
 
-    var toReplicate = req.body.filename;
-    var handle = req.body.handle;
-    var userChecksum = req.body.checksum;
+    var handle2name = item.handle.replace("/", "_");
+    var f = item.filename.split("/");
+    f = f[f.length-1];
 
-    logger.debug(handle + " " + toReplicate);
+    loginController.getToken(db, config, function(token, error) {
 
-    if(handle && toReplicate) {
+        if(error) {
+            callback(false, error);
+        } else {
+            b2safeAPI.remove(handle2name + "/" + f, token, config, function(data, error){
+                if(error) {
+                    if(error.statusCode === 404) {
+                        logger.debug(item.handle + " does not exist on server.");                        
+                    } else {
+                        callback(false, error);
+                        return;
+                    }
+                } else {
+                    logger.debug(item.filename + " is removed from b2safe server.");
+                }                
 
-        if(!fs.existsSync(toReplicate)) {
-            logger.error("Uploaded path not exist");
-            res.send({response: "Uploaded path not exist"});
+                logger.debug("removing the folder ..");
+                b2safeAPI.remove(handle2name, token, config, function(data, error){
+                    if(error) {
+                        if(error.statusCode === 404) {
+                            logger.debug(item.handle + " does not exist on server.");
+                        } else {
+                            callback(false, error);
+                            return;
+                        }
+                    } else {
+                        logger.debug(handle2name + " folder is removed from server.");
+                    }                   
+                    logger.debug("removing entry from local db ..");
+                    db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(error, data) {
+                        if(error) {
+                            callback(false, error);
+                        } else {
+                            logger.debug("local database entry removed.");
+                            callback(true, null);
+                        }
+                    });
+                });
+            });
+
         }
 
-        var stats = fs.statSync(toReplicate);
+    });
 
-        if(stats.isFile()) {
-            replicateFile(handle, toReplicate, userChecksum, db, config, function (response, err) {
-                res.send(response);
-            });
-        } else
-            if(stats.isDirectory()){			
-                var files = fs.readdirSync(toReplicate);
-                for(var i in files) {
-                    var file = files[i];
-                    var fstat = fs.statSync(toReplicate + "/" + file);
-                    if(fstat.isFile()) {
-                        var response = replicateFile(handle, toReplicate + "/" + file, "", db, config);
+}
+
+function removeSplittedFileFinalize(item, db, config, callback) {   
+
+    logger.debug("function called itemController.removeSplittedFileFinalize");
+
+    loginController.getToken(db, config, function(token, err) {
+        if(err) {
+            logger.error(err);
+            callback(false, err);
+        } else {
+            var handle2name = item.handle.replace("/", "_");
+
+            var options = {
+                    encoding: null,
+                    uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name,
+                    method: 'DELETE',
+                    auth: {
+                        'bearer': token
                     }
-                }
-            }
+            };
 
+            rp(options)
+            .then(function (data) {
+                logger.info("folder " + item.handle + " removed.");
+                db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
+                    callback(true, null);
+                });                             
+            })
+            .catch(function (error) {
+                if(error.statusCode === 404) {
+                    // folder already deleted on server just remove the entry from local db
+                    db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
+                        callback(true, null);
+                    });
+                } else {
+                    callback(false, error);
+                }
+            });
+        }
+    });
+}
+
+function removeSplittedFilePartial(item, index, db, config, callback) {
+
+    logger.debug("function called itemController.removeSplittedFilePartial");
+    if(item.splitfiles) {
+        if(index >= item.splitfiles.length) {
+            logger.info("itemController.removeSplittedFilePartial " + item.filename + " completed.");
+            removeSplittedFileFinalize(item, db, config, callback);
+            return;
+        }
     } else {
-        res.send({response: "ERROR"});
+        logger.info("itemController.removeSplittedFilePartial " + item.filename + " completed.");
+        removeSplittedFileFinalize(item, db, config, callback);
+        return;
     }
 
+
+    loginController.getToken(db, config, function(token, err) {
+        if(err) {
+            logger.error(err);
+            callback(false, err);
+        } else {
+            var handle2name = item.handle.replace("/", "_");
+            var splitfile = item.splitfiles[index];
+
+            var options = {
+                    encoding: null,
+                    uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + splitfile.name,
+                    method: 'DELETE',
+                    auth: {
+                        'bearer': token
+                    }
+            };
+
+            rp(options)
+            .then(function (data) {
+                logger.debug(splitfile.name + " removed.");
+                removeSplittedFilePartial(item, index+1, db, config, callback);
+            })
+            .catch(function (error) {
+                logger.error(splitfile.name + " ERROR " + error.statusCode);
+                callback(false, error);
+            });
+        }
+    });
+
+}
+
+function removeSplittedFile(item, db, config, callback) {
+    logger.debug("function called itemController.removeSplittedFile");    
+    removeSplittedFilePartial(item, 0, db, config, function(response, error) {
+
+    });	
+}
+
+exports.listItems = function(req, res, db, config) {
+
+    logger.debug("function called itemController.listItems");
+
+    db.collection("item").aggregate([ {"$group" : {
+        "_id":"$handle",
+        "fileList": {
+            "$push" : {
+                "handle": "$handle",
+                "filename": "$filename",
+                "filesize": "$filesize",
+                "splitted": "$splitted",
+                "splitfiles": "$splitfiles",
+                "checksum": "$checksum",
+                "user-checksum": "$user-checksum",
+                "verified": "$verified",
+                "status": "$status",
+                "start_time": "$start_time",
+                "end_time": "$end_time",
+                "replication_data": "$replication_data",
+                "replication_error": "$replication_error"
+            }
+        }, 
+        "count": {"$sum": 1}
+    }} ],
+    function(err, items) {
+        if (err) {
+            res.send(err);                  
+        } else {
+            res.send(items);
+        }
+    });
 };
 
-exports.getItemStatus = function(req, res, db, config) {
+exports.status = function(req, res, db, config) {
 
     logger.debug("function called itemController.getItemStatus");
 
@@ -230,144 +285,9 @@ exports.getItemStatus = function(req, res, db, config) {
             } else {
                 res.send({response: "ERROR"});
             }
-        }		
-    });	
+        }       
+    }); 
 };
-
-function removeSingleFile(item, db, config, callback) {
-
-    logger.debug("function called itemController.removeSingleFile");
-
-    var handle2name = item.handle.replace("/", "_");
-    var f = item.filename.split("/");
-    f = f[f.length-1];
-
-    loginController.getToken(db, config, function(token, err) {
-        if(err) {
-            callback(false, err);
-        } else {
-            let options = {
-                    encoding: null,
-                    uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + f,
-                    method: 'DELETE',
-                    auth: {
-                        'bearer': token
-                    }
-            };
-
-            rp(options)
-            .then(function (data) {
-
-                logger.debug(item.filename + " removed from b2safe server.");
-
-                logger.debug("removing the folder ..");
-
-                let options = {
-                        encoding: null,
-                        uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name,
-                        method: 'DELETE',
-                        auth: {
-                            'bearer': token
-                        }
-                };
-
-                rp(options)
-                .then(function (data) {
-                    logger.debug("folder " + item.handle + " removed.");
-                    logger.debug("removing entry from local database ..");
-                    db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
-                        if(err) {
-                            callback(false, err);
-                        } else {
-                            logger.debug("local database entry removed.");
-                            callback(true, null);
-                        }
-                    });								
-                })
-                .catch(function (error) {
-                    if(error.statusCode === 404) {
-                        logger.debug("folder " + item.handle + " not exist on b2safe server.");	
-                        logger.debug("removing entry from local database ..");
-                        db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
-                            if(err) {
-                                callback(false, err);
-                            } else {
-                                logger.debug("local database entry removed.");
-                                callback(true, null);
-                            }
-                        });								
-                    }
-                });						
-
-            })
-            .catch(function (err) {
-                logger.error(item.filename + " ERROR " + error.statusCode);
-                callback(false, err);
-            });
-
-        }
-
-    });
-
-}
-
-function removeSplittedFile(item, db, config, callback) {
-
-    logger.debug("function called itemController.removeSplittedFile");
-
-    var handle2name = item.handle.replace("/", "_");
-
-    loginController.getToken(db, config, async function(token, err) {
-
-        for(var i in item.splitfiles) {
-            var splitfile = item.splitfiles[i];
-
-            var options = {
-                    encoding: null,
-                    uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + splitfile.name,
-                    method: 'DELETE',
-                    auth: {
-                        'bearer': token
-                    }
-            };
-
-            await rp(options)
-            .then(function (data) {
-                logger.info(splitfile.name + " removed.");
-            })
-            .catch(function (error) {
-                logger.error(splitfile.name + " ERROR " + error.statusCode);
-            });
-
-
-        }
-
-        var options = {
-                encoding: null,
-                uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name,
-                method: 'DELETE',
-                auth: {
-                    'bearer': token
-                }
-        };
-
-        await rp(options)
-        .then(function (data) {
-            logger.info("folder " + item.handle + " removed.");
-            db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
-                callback(true);
-            });								
-        })
-        .catch(function (error) {
-            if(error.statusCode === 404) {
-                db.collection("item").deleteOne({'handle' : item.handle, 'filename': item.filename}, function(err, del) {
-                    callback(true);
-                });								
-            }
-        });
-
-    });	
-}
 
 exports.remove = function(req, res, db, config) {
 
@@ -440,3 +360,100 @@ exports.remove = function(req, res, db, config) {
     });
 
 }
+
+exports.retrieve = function(req, res, db, config) {
+
+    logger.debug("function called itemController.retrieve");
+
+    var handle = req.query.handle;
+
+    db.collection("item").findOne({'handle' : handle}, function(err, result) {      
+        if(err) {
+            res.send(err);
+        } else {
+            if(result) {
+                if(result.status === 'COMPLETED') {
+
+                    var handle2name = handle.replace("/", "_");
+                    var f = result.replication_data.filename;
+
+                    loginController.getToken(db, config, function(token, err) {                 
+                        var options = {
+                                encoding: null,
+                                uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + handle2name + "/" + f,
+                                method: 'GET',
+                                auth: {
+                                    'bearer': token
+                                },
+                                formData: {
+                                    'download' :  "true"
+                                },      
+                        };
+
+                        rp(options)
+                        .then(function (data) {
+                            res.writeHead(200, {"Transfer-Encoding": "chunked",
+                                "Content-Type" : mime.lookup(f),
+                                "Content-Disposition" : "attachment; filename=" + f
+                            });
+                            res.write(data, 'binary');
+                            res.end();
+
+                        })
+                        .catch(function (error) {
+                            logger.error(error);
+                        });
+                    });
+
+                } else {
+                    res.send({response: result.status});
+                }
+            } else {
+                res.send({respnose: 404});
+            }
+        }
+    });
+}
+
+exports.replicate = function(req, res, db, config) {
+
+    logger.debug("function called itemController.replicate");
+
+    var toReplicate = req.body.filename;
+    var handle = req.body.handle;
+    var userChecksum = req.body.checksum;
+
+    logger.debug(handle + " " + toReplicate);
+
+    if(handle && toReplicate) {
+
+        if(!fs.existsSync(toReplicate)) {
+            logger.error("Uploaded path not exist");
+            res.send({response: "Uploaded path not exist"});
+        }
+
+        var stats = fs.statSync(toReplicate);
+
+        if(stats.isFile()) {
+            replicateFile(handle, toReplicate, userChecksum, db, config, function (response, err) {
+                res.send(response);
+            });
+        } else
+            if(stats.isDirectory()){            
+                var files = fs.readdirSync(toReplicate);
+                for(var i in files) {
+                    var file = files[i];
+                    var fstat = fs.statSync(toReplicate + "/" + file);
+                    if(fstat.isFile()) {
+                        replicateFile(handle, toReplicate + "/" + file, "", db, config, function (response, err) {
+                            res.send(response);
+                        });
+                    }
+                }
+            }
+
+    } else {
+        res.send({response: "ERROR"});
+    }
+
+};
