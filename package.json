@@ -33,6 +33,7 @@
     "node-cron": "^1.2.1",
     "node-datetime": "^2.0.3",
     "request": "^2.83.0",
+    "request-promise": "^4.2.2",
     "split-file": "^2.1.0",
     "tmp": "0.0.33",
     "tracer": "^0.8.11",
