@@ -119,19 +119,18 @@ function loadList() {
         function (data) {
             data.forEach(function (item) {
                 if (item.count > 1) {
+                    var c_id = "h_" + item._id.replace(/\//g, "_").replace(/:/g, "_");
                     container
-                        .append("<tr><td colspan=\"4\"><table id=\"h_"
-                            + item._id
+                        .append("<tr><td colspan=\"4\"><table id=\"" + c_id
                             + "\" class=\"table table-sm\" style=\"font-size: 12px;\"></table></td></tr>");
                     for (var i in item.fileList) {
                         var subItem = item.fileList[i];
-                        var innerContainer = $("#h_" + subItem.handle);
+                        innerContainer = $("#" + c_id);
                         displayItem(subItem, innerContainer);
                     }
                 } else {
                     displayItem(item.fileList[0], container);
                 }
-
             });
 
             $('[data-toggle="tooltip"]').tooltip();
@@ -140,7 +139,6 @@ function loadList() {
                 container: 'body',
                 html: true
             });
-
         });
 }
 

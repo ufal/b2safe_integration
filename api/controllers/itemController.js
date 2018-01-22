@@ -145,7 +145,7 @@ function replicateFile(handle, fileToReplicate, userChecksum, db, config,
 function removeSingleFile(item, db, config, callback) {
     logger.trace();
 
-    var handle2name = item.handle.replace("/", "_");
+    var handle2name = b2safeAPI.nameFromHandle(item.handle);
     var f = item.filename.split("/");
     f = f[f.length - 1];
 
@@ -208,7 +208,7 @@ function removeSplittedFileFinalize(item, db, config, callback) {
             logger.error(error);
             callback(false, error);
         } else {
-            var handle2name = item.handle.replace("/", "_");
+            var handle2name = b2safeAPI.nameFromHandle(item.handle);
             var f = path.basename(item.filename);
 
             b2safeAPI.remove(handle2name + "/" + f + ".info", token, config,
@@ -275,7 +275,7 @@ function removeSplittedFilePartial(item, index, db, config, callback) {
                 logger.error(error);
                 callback(false, error);
             } else {
-                var handle2name = item.handle.replace("/", "_");
+                var handle2name = b2safeAPI.nameFromHandle(item.handle);
                 var splitfile = item.splitfiles[index];
 
                 b2safeAPI
@@ -461,7 +461,7 @@ exports.retrieve = function (req, res, db, config) {
                 if (result) {
                     if (result.status === 'COMPLETED') {
 
-                        var handle2name = handle.replace("/", "_");
+                        var handle2name = b2safeAPI.nameFromHandle(handle);
                         var f = result.replication_data.filename;
 
                         loginController.getToken(db, config, function (token, error) {

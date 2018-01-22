@@ -14,6 +14,10 @@ function call_uri(options, callback) {
     });
 }
 
+exports.nameFromHandle = function (h) {
+    return h.replace(/\//g, "_").replace(/:/g, "_");
+};
+
 exports.remove = function (location, token, config, callback) {
 
     logger.trace(location);
@@ -52,7 +56,7 @@ exports.createFolder = function (location, token, config, callback) {
             logger.error(error);
             callback(null, error);
         } else {
-            logger.debug("folder not found : " + response.statusCode);
+            logger.debug("Folder not found : " + response.statusCode);
             if (response.statusCode === 404) { // folder not found
                 let options = {
                     uri: config.b2safe.url + '/api/registered?path='

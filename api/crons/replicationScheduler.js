@@ -13,6 +13,7 @@ const updateError = require('../controllers/itemController').updateError;
 var processing = false;
 var itemBeingProcessedNow = 0;
 
+
 function splitReplicateFinalize(item, names, splitverified, error, db, config, callback) {
     logger.trace();
 
@@ -32,7 +33,7 @@ function splitReplicateFinalize(item, names, splitverified, error, db, config, c
                 if (error) {
                     updateError(error, false, item, db, config, callback);
                 } else {
-                    var handle2name = item.handle.replace("/", "_");
+                    var handle2name = b2safeAPI.nameFromHandle(item.handle);
                     var f = path.basename(item.filename) + ".info";
                     b2safeAPI.putFile(fs.createReadStream(tmpfile.name), handle2name + "/" + f, true, true, token, config, function (data, error) {
                         if (error) {
@@ -99,7 +100,7 @@ function splitReplicatePartial(item, names, index, splitverified, db, config, ca
             }
 
             var f = path.basename(name);
-            var handle2name = item.handle.replace("/", "_");
+            var handle2name = b2safeAPI.nameFromHandle(item.handle);
 
             b2safeAPI.putFile(fs.createReadStream(name), handle2name + "/" + f, true, true, token, config, function (data, error) {
                 if (error) {
@@ -164,7 +165,6 @@ function splitReplicatePartial(item, names, index, splitverified, db, config, ca
 }
 
 function splitReplicate(item, token, db, config, callback) {
-
     logger.trace();
 
     db.collection("item").updateOne({'handle': item.handle, 'filename': item.filename}, {$set: {'splitted': 1}});
@@ -189,7 +189,7 @@ function doReplicate(item, token, db, config, callback) {
     }
 
     var f = path.basename(item.filename);
-    var handle2name = item.handle.replace("/", "_");
+    var handle2name = b2safeAPI.nameFromHandle(item.handle);
 
     b2safeAPI.putFile(fs.createReadStream(item.filename), handle2name + "/" + f, true, true, token, config, function (data, error) {
         if (error) {
@@ -224,7 +224,7 @@ function createFolder(item, db, config, callback) {
             updateError(error, false, item, db, config, callback);
         } else {
 
-            var handle2name = item.handle.replace("/", "_");
+            var handle2name = b2safeAPI.nameFromHandle(item.handle);
 
             b2safeAPI.createFolder(handle2name, token, config, function (data, error) {
                 if (error) {

@@ -11,6 +11,7 @@ const md5File = require('md5-file');
 const loginController = require('../controllers/loginController');
 const spinner = require('cli-spinner').Spinner;
 const splitFile = require('split-file');
+const b2safeAPI = require('../controllers/eudatHttpApiController');
 
 const logger = require('../logger/logger');
 
@@ -127,7 +128,7 @@ function run(db, config) {
 
 async function download_file(filename, handle, db, config) {
 
-  var handle2name = handle.replace("/", "_");
+  var handle2name = b2safeAPI.nameFromHandle(handle);
 
   var options = {
       encoding: null,
