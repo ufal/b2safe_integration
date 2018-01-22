@@ -10,13 +10,11 @@ const rs = require('./api/crons/replicationScheduler');
 
 const app = express();
 
-logger.info('Starting application');
+logger.info('Starting application [NODE_ENV=%s]', config.util.getEnv('NODE_ENV'));
 
 if (config.util.getEnv('NODE_ENV') !== 'test') {
   app.use(morgan("combined", { stream: { write: message => logger.info(message) }}));
 }
-
-logger.debug("NODE_ENV = " + config.util.getEnv('NODE_ENV'));
 
 app.use(bodyParser.urlencoded({
   extended : true

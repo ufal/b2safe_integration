@@ -11,7 +11,6 @@
 <script src="https://code.jquery.com/jquery-3.2.1.min.js"
 	integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
 	crossorigin="anonymous"></script>
-
 <script
 	src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.3/umd/popper.min.js"
 	integrity="sha384-vFJXuSJphROIrBnz7yo7oB41mKfc8JzQZiCq4NCceLEaO4IHwicKwpJf9c9IpFgh"
@@ -27,7 +26,7 @@
 }
 </style>
 
-<script src="/script.js"></script>
+<script src="./script.js"></script>
 
 </head>
 <body>
@@ -42,7 +41,7 @@
 		<div class="card" style="margin: 10px; min-height: 400px;">
 			<div class="card-header">
 				<strong>Item List</strong><a class="pull-right" href="#"
-					onclick="javascript:loadList();"><i class="fa fa-refresh">
+					onclick="loadList();"><i class="fa fa-refresh">
 				</i></a>
 			</div>
 			<div class="card-body">
@@ -103,7 +102,7 @@
 									<div style="margin-bottom: 5px;">Run the following
 										command on server to download the file:</div>
 									<div class="alert alert-info">
-										<strong>./api/bin/download.js --handle &lt;handle&gt;
+										<strong>./api/bin/download.js --handle <span id="download-handle"></span>
 											--output &lt;output-folder&gt;</strong>
 									</div>
 								</div>
