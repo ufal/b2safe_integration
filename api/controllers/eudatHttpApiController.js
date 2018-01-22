@@ -1,189 +1,158 @@
-const rp = require('request-promise');
+const request = require('request');
 const logger = require('../logger/logger');
 
+function call_uri(options, callback) {
+  request(options, function (error, response, body) {
+    if (error) {
+      logger.error(error);
+      callback(null, error);
+    } else {
+      logger.debug(response.statusCode);
+      logger.debug(body);
+      callback(body, null);
+    }
+  });
+}
 
 exports.remove = function (location, token, config, callback) {
 
-    logger.trace();
+  logger.trace(location);
 
-    let options = {
-            encoding: null,
-            uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + location,
-            method: 'DELETE',
-            auth: {
-                'bearer': token
-            }
-    };
+  let options = {
+    uri : config.b2safe.url + '/api/registered' + config.b2safe.path + "/"
+        + location,
+    method : 'DELETE',
+    headers : {
+      'Authorization' : 'bearer ' + token
+    },
+    json : true
+  };
 
-    rp(options)
-    .then(function (data) {
-        logger.debug(data);
-        callback(data, null);
-    })
-    .catch(function (error) {
-        logger.error(error);
-        callback(null, error);
-    });    
+  call_uri(options, callback);
 
 }
 
 exports.createFolder = function (location, token, config, callback) {
 
-    logger.trace();
-    
-    let options = {
-            uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + location,
-            method: 'HEAD',
-            auth: {
-                'bearer': token
-            },
-            json: true,
-            resolveWithFullResponse: true
-    };
+  logger.trace();
 
-    // HEAD request to check if folder already exists
-    rp(options)
-    .then(function (response) {
-        logger.debug("folder exists : " + response.statusCode);
-        callback({}, null);
-    })
-    .catch(function (error) {
-        logger.debug("folder not found : " + error.statusCode);
-        if(error.statusCode === 404) { // folder not found
-            let options = {
-                    uri: config.b2safe.url + '/api/registered?path=' + config.b2safe.path + "/" + location,
-                    method: 'POST',
-                    auth: {
-                        'bearer': token
-                    },
-                    json: true
-            };
-            // POST request to create a folder
-            rp(options)
-            .then(function (data) {
-                logger.debug(data);
-                callback(data, null);
-            })
-            .catch(function (error) {
-                logger.error(error);
-                if (error.statusCode === 400) { // folder already exists
-                    callback({}, null);
-                } else {
-                    callback(null, error);
-                }
-            });
-        } else {
+  let options = {
+    uri : config.b2safe.url + '/api/registered' + config.b2safe.path + "/"
+        + location,
+    method : 'HEAD',
+    headers : {
+      'Authorization' : 'bearer ' + token
+    },
+    json : true
+  };
+
+  // HEAD request to check if folder already exists
+  request(options, function (error, response, body) {
+    if (error) {
+      logger.error(error);
+      callback(null, error);      
+    } else {
+      logger.debug("folder not found : " + response.statusCode);
+      if (response.statusCode === 404) { // folder not found
+        let options = {
+          uri : config.b2safe.url + '/api/registered?path='
+              + config.b2safe.path + "/" + location,
+          method : 'POST',
+          headers : {
+            'Authorization' : 'bearer ' + token
+          },
+          json : true
+        };
+        // POST request to create a folder
+        request(options, function (error, response, body) {
+          if (error) {
+            logger.error(error);
             callback(null, error);
-        }
-    }); 
-
+          } else {
+            logger.debug(body);
+            callback(body, null);
+          }
+        });
+      } else {
+        logger.debug(response);
+        callback({}, null);
+      }
+    }
+  });
 }
 
-exports.putFile = function (stream, location, force, pid_await, token, config, callback) {
+exports.putFile = function (stream, location, force, pid_await, token, config,
+    callback) {
 
-    logger.trace();
-    
-    var options = {
-            uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + location,
-            method: 'PUT',
-            auth: {
-                'bearer': token
-            },
-            formData: {
-                'file' :  stream,
-                'pid_await': pid_await.toString(),
-                'force': force.toString()
-            },                
-            json: true
-    };
+  logger.trace();
 
-    rp(options)
-    .then(function (data) {
-        logger.debug(data);
-        callback(data, null);
-    })
-    .catch(function (error) {
-        logger.error(error);
-        callback(null, error);
-    });    
+  var options = {
+    uri : config.b2safe.url + '/api/registered' + config.b2safe.path + "/"
+        + location + "?force=" + force.toString() + "&pid_await=" + pid_await.toString(),
+    method : 'PUT',
+    headers : {
+      'Authorization' : 'bearer ' + token
+    },
+    formData : {
+      'file' : stream
+    },
+    json : true
+  };
+
+  call_uri(options, callback);
+
 }
 
 exports.downloadFile = function (location, token, config, callback) {
 
-    logger.trace();
+  logger.trace();
 
-    var options = {
-            encoding: null,
-            uri: config.b2safe.url + '/api/registered' + config.b2safe.path + "/" + location,
-            method: 'GET',
-            auth: {
-                'bearer': token
-            },
-            formData: {
-                'download' :  "true"
-            },      
-    };
+  var options = {
+    uri : config.b2safe.url + '/api/registered' + config.b2safe.path + "/"
+        + location + "?download=true",
+    method : 'GET',
+    encoding : null,
+    headers : {
+      'Authorization' : 'bearer ' + token
+    }
+  };
 
-    rp(options)
-    .then(function (data) {
-        logger.debug(data);
-        callback(data, null);
-    })
-    .catch(function (error) {
-        logger.error(error);
-        callback(null, error);
-    });    
+  call_uri(options, callback);
+
 }
 
 exports.testToken = function (token, config, callback) {
 
-    logger.trace();
+  logger.trace();
 
-    var options = {
-            uri: config.b2safe.url + '/auth/b2safeproxy',
-            method: 'GET',
-            timeout: 30000,
-            auth: {
-                'bearer': token
-            },
-            json: true
-    };
+  var options = {
+    uri : config.b2safe.url + '/auth/b2safeproxy',
+    method : 'GET',
+    timeout : 30000,
+    headers : {
+      'Authorization' : 'bearer ' + token
+    },
+    json : true
+  };
 
-    rp(options)
-    .then(function (data){
-        logger.debug(data);
-        callback(data, null);
-    })
-    .catch(function (error) {
-        logger.error(error);        
-        callback(null, error);
-    });
+  call_uri(options, callback);
 
 }
 
-
 exports.authenticate = function (config, callback) {
 
-    logger.trace();
+  logger.trace();
 
-    var options = {
-            uri: config.b2safe.url + '/auth/b2safeproxy',
-            method: 'POST',
-            formData: {
-                'username' : config.b2safe.username,
-                'password': config.b2safe.password,
-            },
-            json: true
-    };
+  var options = {
+    uri : config.b2safe.url + '/auth/b2safeproxy',
+    method : 'POST',
+    form : {
+      'username' : config.b2safe.username,
+      'password' : config.b2safe.password,
+    },
+    json : true
+  };
 
-    rp(options)
-    .then(function (data){
-        logger.debug(data);
-        callback(data, null);
-    })
-    .catch(function (error) {
-        logger.error(error);        
-        callback(null, error);
-    });
-    
+  call_uri(options, callback);
+
 }
