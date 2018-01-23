@@ -115,7 +115,10 @@ public class App implements MessageListener {
                     try {
                         //TODO cleanup
                         Path dir = Files.createTempDirectory(sha1);
-                        Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxrwxrwx"));
+                        if (!System.getProperty("os.name").startsWith("Windows")) {
+                            Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxrwxrwx"));
+                        }
+
                         LOGGER.debug("Created " + dir.toString());
                         Path metadata = dir.resolve("metadata.ttl");
                         Path file = dir.resolve(filename);

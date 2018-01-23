@@ -18,3 +18,7 @@ To access the application go to http://localhost:3000/
 ## Requirements
 
 - node version > 7.6
+
+## Windows Notes
+
+- use `%NODE_DEBUG_OPTION%` in package.json for debugging

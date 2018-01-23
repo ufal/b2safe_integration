@@ -1,16 +1,19 @@
 {
-  "b2safe" : {
-    "url" : "https://b2stage.cineca.it",
-    "username" : "",
-    "password" : "",
+  "b2safe": {
+    "url": "https://b2stage.cineca.it",
+    "username": "",
+    "password": "",
     "path": "",
     "maxfilesize": 1000
   },
-  "replicationCronJob" :{
-    "timer":  "*/10 * * * * *",
+  "replicationCronJob": {
+    "timer": "*/10 * * * * *",
     "bandwidth": 10
-  },	
-  "db" : {
-    "url" : "mongodb://localhost:27017/"
+  },
+  "db": {
+    "url": "mongodb://localhost:27017/"
+  },
+  "logger": {
+    "level": "debug"
   }
 }

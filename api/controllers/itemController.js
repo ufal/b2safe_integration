@@ -539,24 +539,29 @@ exports.retrieve = function (req, res, db, config) {
               var f = result.replication_data.filename;
 
               loginController.getToken(db, config, function (token, error) {
-                b2safeAPI.downloadFile(handle2name + "/" + f, token, config,
-                    function (data, error) {
-                  if (error) {
-                    logger.error(error);
-                    res.send({
-                      response : data.status
-                    });
-                  } else {
-                    res.writeHead(200, {
-                      "Transfer-Encoding" : "chunked",
-                      "Content-Type" : mime.lookup(f),
-                      "Content-Disposition" : "attachment; filename=" + f
-                    });
-                    res.write(data, 'binary');
-                    res.end();
-                  }
-                });
-
+                if(error) {
+                  res.send({
+                    response : error
+                  });                  
+                } else {
+                  b2safeAPI.downloadFile(handle2name + "/" + f, token, config,
+                      function (data, error) {
+                    if (error) {
+                      logger.error(error);
+                      res.send({
+                        response : data.status
+                      });
+                    } else {
+                      res.writeHead(200, {
+                        "Transfer-Encoding" : "chunked",
+                        "Content-Type" : mime.lookup(f),
+                        "Content-Disposition" : "attachment; filename=" + f
+                      });
+                      res.write(data, 'binary');
+                      res.end();
+                    }
+                  });
+                }
               });
 
             } else {

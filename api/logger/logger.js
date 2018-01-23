@@ -1,3 +1,5 @@
+const config = require('config');
+
 /*const winston = require("winston");
 
 const level = process.env.LOG_LEVEL || 'debug';
@@ -24,13 +26,13 @@ winston.addColors({
 const logger = require('tracer')
     .colorConsole(
         {
-          level : 'trace',
+          level : config.logger.level || 'trace',
           format : [
               "{{timestamp}} <{{title}}> {{file}}:{{line}} {{message}}",
               {
                 trace : "{{timestamp}} <{{title}}> {{file}}:{{line}} {{method}} {{message}}"
               } ],
           dateformat : "HH:MM:ss.L"
-        })
+        });
 
-module.exports = logger
+module.exports = logger;
