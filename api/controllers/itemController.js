@@ -150,8 +150,7 @@ function removeSingleFile(item, db, config, callback) {
   logger.trace();
 
   var handle2name = item.handle.replace("/", "_");
-  var f = item.filename.split("/");
-  f = f[f.length - 1];
+  var f = path.basename(item.filename);
 
   loginController.getToken(db, config, function (token, error) {
 
@@ -315,6 +314,99 @@ function removeSplittedFile(item, db, config, callback) {
 
 }
 
+function removeFile(item, db, config, callback) {
+  
+  logger.trace();
+
+  db.collection("item").updateOne({
+    'handle' : item.handle,
+    'filename' : item.filename
+  }, {
+    $set : {
+      'status' : 'DELETING',
+      'start_time' : new Date().toISOString()
+    }
+  });
+
+  if (item.splitted === 1) {
+    removeSplittedFile(item, db, config, function (response, error) {
+      logger.trace();
+      if (error) {
+        logger.error(error);
+        this.updateError(error, false, item, db, config, callback);
+      } else {
+        callback(true, null);
+      }
+    });
+  } else {
+    removeSingleFile(item, db, config, function (response, error) {
+      if (response) {
+        callback(true, null);
+      } else {
+        db.collection("item").updateOne({
+          'handle' : item.handle,
+          'filename' : item.filename
+        }, {
+          $set : {
+            'status' : 'ERROR',
+            'end_time' : new Date().toISOString(),
+            'replication_error' : error
+          }
+        });
+        callback(false, error);
+      }
+    });
+  } 
+  
+}
+
+function removeFolderFinalize(handle, db, config, callback) {
+
+  logger.trace();
+
+  loginController.getToken(db, config, function (token, error) {
+    if (error) {
+      logger.error(error);
+      callback(false, error);
+    } else {
+      var handle2name = handle.replace("/", "_");
+
+      b2safeAPI.remove(handle2name, token, config,
+          function (data, error) {
+        if (error) {
+          if (error.StatusCodeError === 404) {
+            logger.info("folder " + handle + " not available on server.");
+          }
+          callback(data, error);
+        } else {
+          logger.info("folder " + handle + " removed.");
+          callback(data, error);
+        }
+      });
+
+    }
+  });
+}
+
+function removeFolder(handle, items, index, db, config, callback) {
+  
+  logger.trace();
+  
+  if(index >= items.length) {
+    removeFolderFinalize(handle, db, config, function(response, error){
+      callback(response, error);
+    });
+  } else {
+    var item = items[index];
+    removeFile(item, db, config, function(response, error) {
+      if(error) {        
+      } else {  
+        removeFolder(handle, items, index+1, db, config, callback);
+      }
+    });
+  }
+}
+
 exports.listItems = function (req, res, db, config) {
 
   logger.trace();
@@ -337,17 +429,21 @@ exports.listItems = function (req, res, db, config) {
           "end_time" : "$end_time",
           "replication_data" : "$replication_data",
           "replication_error" : "$replication_error"
-        }
+        },
       },
       "count" : {
         "$sum" : 1
       }
-    }
+    }},
+    {"$sort" : {
+      "end_time" : -1
+    }    
   } ], function (error, items) {
     if (error) {
       logger.error(error);
       res.send(error);
     } else {
+      logger.debug(items);
       res.send(items);
     }
   });
@@ -386,65 +482,37 @@ exports.remove = function (req, res, db, config) {
   var filename = req.query.filename;
 
   logger.debug(handle + " " + filename);
+  
+  var query = {'handle' : handle};
+  if(filename) {
+    query['filename'] = filename;
+  }
 
-  db.collection("item").find({
-    'handle' : handle
-  }).toArray(function (error, items) {
+  db.collection("item").find(query).toArray(function (error, items) {
     if (error) {
       logger.error(error);
       res.send(error);
     } else {
-
       if (items.length === 1) {
         logger.debug("itemController.remove single file");
         var item = items[0];
-
-        db.collection("item").updateOne({
-          'handle' : item.handle,
-          'filename' : item.filename
-        }, {
-          $set : {
-            'status' : 'DELETING',
-            'start_time' : new Date().toISOString()
+        removeFile(item, db, config, function(response, error) {
+          if(error) {
+            res.send("{response: ERROR}");
+          } else {
+            res.send("{response: DELETED}");
           }
         });
-
-        if (item.splitted === 1) {
-          removeSplittedFile(item, db, config, function (response, error) {
-            logger.trace();
-            if (error) {
-              logger.error(error);
-              this.updateError(error, false, item, db, config, function(response, error) {});
-            } else {
-              res.send({
-                response : "DELETED"
-              });
-            }
-          });
-        } else {
-          removeSingleFile(item, db, config, function (response, error) {
-            if (response) {
-              res.send({
-                response : "DELETED"
-              });
-            } else {
-              db.collection("item").updateOne({
-                'handle' : item.handle,
-                'filename' : item.filename
-              }, {
-                $set : {
-                  'status' : 'ERROR',
-                  'end_time' : new Date().toISOString(),
-                  'replication_error' : error
-                }
-              });
-            }
-          });
-        }
-      } else {
-
+      } else if(items.length > 1) {
+        logger.debug("deleting folder " + handle);
+        removeFolder(handle, items, 0, db, config, function(response, error) {
+          if(error) {
+            res.send("{response: ERROR}");
+          } else {
+            res.send("{response: DELETED}");
+          }          
+        });
       }
-
     }
   });
 

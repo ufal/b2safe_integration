@@ -4,15 +4,15 @@ const express = require('express');
 const MongoClient = require('mongodb').MongoClient;
 const config = require('config');
 const program = require('commander');
-const rp = require('request-promise');
 const fs = require('fs');
 const mime = require('mime-types');
 const md5File = require('md5-file');
-const loginController = require('../controllers/loginController');
+const path = require('path');
 const spinner = require('cli-spinner').Spinner;
 const splitFile = require('split-file');
-
 const logger = require('../logger/logger');
+const loginController = require('../controllers/loginController');
+const b2safeAPI = require('../controllers/eudatHttpApiController');
 
 program
 .option('-hdl, --handle <handle>', 'The handle of the item')
@@ -43,114 +43,141 @@ if(!stats.isDirectory()) {
   process.exit(-1);
 }
 
-
-MongoClient.connect(config.db.url, function(err, database) {
-  if (err) { return console.log(err); }
-  run(database, config);
-});
-
 var downloading = new spinner('downloading .. %s');
 downloading.setSpinnerString('|/-\\');
 
 var merging = new spinner('merging .. %s');
 merging.setSpinnerString('|/-\\');
 
-
-var token = null;
-
-
-function run(db, config) {
-
-  loginController.getToken(db, config, function(t) {	
-
-    token = t;
-
-    db.collection("item").findOne({'handle' : handle}, async function(err, item) {		
-      if(err) {
-        res.send(err);
+function downloadSplittedFile(item, token, index, db, config, callback){
+  logger.trace();
+  if(index>=item.splitfiles.length) {
+    merging.start();
+    var names = [];
+    for(var i in item.splitfiles){
+      names.push(output + "/" + item.splitfiles[i].name);
+    }    
+    var filename = item.replication_data.filename.replace(".info", "");
+    splitFile.mergeFiles(names, output + "/" + filename)
+    .then(function(){
+      merging.stop();
+      console.log("Verifying checksum");
+      var checksum = md5File.sync(output + "/" + filename);
+      if(checksum === item.checksum) {
+        console.log("verified.")        
       } else {
-        var names = [];
-        if(item) {
-          if(item.status === 'COMPLETED') {
-            if(item.splitted === 1) {
-              for(var i in item.splitfiles) {
-                var splitfile = item.splitfiles[i];
-                names.push(output + "/" + splitfile.name);
-                console.log(splitfile.name);
-                await download_file(splitfile.name, handle, db, config);
-              }
+        logger.error("unable to verify checksum.")
+      }
+      for(var i in names) {
+        var name = names[i];
+        fs.unlinkSync(name);
+      }      
+      callback(true, null);
+    })
+    .catch(function(error){
+      merging.stop();
+      callback(false, error);      
+    });
+  } else {
+    var handle2name = item.handle.replace("/", "_");
+    var filename = item.splitfiles[index].name;
+    console.log(handle2name + "/" + filename);
+    downloading.start(); 
+    b2safeAPI.downloadFile(handle2name + "/" + filename, token, config, function(response, error) {
+      downloading.stop();
+      if(error) {
+        console.log(" ERROR");
+        callback(null, error);
+      } else {
+        console.log(" DONE");
+        fs.writeFileSync(output + "/" + filename, response, "binary");
+        downloadSplittedFile(item, token, index+1, db, config, callback);
+      }
+    });    
+  }
+}
 
-              merging.start();
-              var f = item.filename.split("/");
-              f = f[f.length-1];							
-              await splitFile.mergeFiles(names, output + "/" + f)
-              .then(function (){
-                for(var i in names) {
-                  var name = names[i];
-                  fs.unlinkSync(name);
-                }
-                merging.stop();
-                console.log(" Done");
-                console.log("Verifying ...")
-                var checksum = md5File.sync(output + "/" + f);
-                if(checksum === item.checksum) {
-                  console.log("File Download Completed.")
-                } else {
-                  console.log("checksum failed.")
-                }
-                db.close();
-              })
-              .catch(function (err){
-                for(var i in names) {
-                  var name = names[i];
-                  fs.unlinkSync(name);
-                }
-                merging.stop();
-                console.log(err);
-                db.close();
-              });							
-
-            } else {
-              await download_file(result.replication_data.filename, handle, db, config);
-              db.close();
-            }
+function downloadSingleFile(item, token, db, config, callback){
+  logger.trace();
+  if(item.status === 'COMPLETED') {
+    if(item.splitted === 1) {
+      downloadSplittedFile(item, token, 0, db, config, callback);
+    } else {
+      var handle2name = item.handle.replace("/", "_");
+      var filename = item.replication_data.filename;      
+      console.log(handle2name + "/" + filename);
+      downloading.start();
+      b2safeAPI.downloadFile(handle2name + "/" + filename, token, config, function(response, error) {
+        downloading.stop();
+        if(!error) {
+          console.log(" DONE");
+          fs.writeFileSync(output + "/" + item.replication_data.filename, response, "binary");
+          console.log("Verifying checksum");
+          var checksum = md5File.sync(output + "/" + item.replication_data.filename);          
+          if(checksum === item.checksum) {
+            console.log("verified.")
           } else {
+            logger.error("unable to verify checksum.")
           }
+
         } else {
-          console.log("Handle not found.")
+          console.log(" ERROR");
+        }
+        callback(response, error);        
+      });
+    }
+  }
+}
+
+function downloadFolder(items, index, token, db, config, callback) {
+  if(index>=items.length) {
+    callback(true, null);
+  } else {
+    var item = items[index];
+    downloadSingleFile(item, token, db, config, function(response, error) {
+      if(!error){
+        downloadFolder(items, index+1, token, db, config, callback);
+      } else {
+        logger.error(error);
+        callback(response, error);
+      }
+    });
+  }
+}
+
+function run(db, config, callback) {  
+  logger.trace();  
+  loginController.getToken(db, config, function(token) {
+    db.collection("item").find({'handle' : handle}).toArray(function (error, items) {
+      if(error) {
+        logger.error(error);
+      } else {
+        if(items) {
+          if(items.length>1) {
+            console.log("downloading folder " + handle.replace("/", "_"));
+            downloadFolder(items, 0, token, db, config, function(response, error) {
+              callback();
+            });
+          } else if(items.length===1) {
+            let item = items[0];
+            downloadSingleFile(item, token, db, config, function(response, error) {              
+              callback();              
+            });
+          } else {
+            logger.error("No items found for the given handle: " + handle);
+          }
         }
       }
-    });	
+    });
   });
 }
 
-
-async function download_file(filename, handle, db, config) {
-
-  var handle2name = handle.replace("/", "_");
-
-  var options = {
-      encoding: null,
-      uri: config.b2safe.url + "/api/registered" + config.b2safe.path + "/" + handle2name + "/" + filename,
-      method: "GET",
-      auth: {
-        "bearer": token
-      },
-      formData: {
-        "download" :  "true"
-      },		
-  };
-
-  downloading.start();
-
-  await rp(options)
-  .then(function (data) {
-    fs.writeFileSync(output + "/" + filename, data, "binary");
-    console.log(" COMPLETED")
-  })
-  .catch(function (error) {
-    console.log(" ERROR");		
+MongoClient.connect(config.db.url, function(error, database) {
+  if (error) {
+    logger.error(error);
+    return;
+  }
+  run(database, config, function(){
+    database.close();
   });
-
-  downloading.stop();
-}
+});

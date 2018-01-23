@@ -32,35 +32,24 @@
 </head>
 <body>
 
-	<nav class="navbar navbar-dark bg-dark">
+	<nav class="navbar navbar-dark bg-dark fixed-top">
 		<div class="navbar-brand">
-			<b>EUDAT-B2STAGE HTTP-API CLARIN Integration</b>
+			<b>EUDAT-B2STAGE HTTP-API INTEGRATION</b>
 		</div>
 	</nav>
+	<div class="container-fluid" style="margin-top: 70px;">
 
-	<div class="container">
-		<div class="card" style="margin: 10px; min-height: 400px;">
-			<div class="card-header">
-				<strong>Item List</strong><a class="pull-right" href="#"
-					onclick="javascript:loadList();"><i class="fa fa-refresh">
-				</i></a>
-			</div>
-			<div class="card-body">
-				<table class="table table-bordered">
-					<thead>
-						<tr>
-							<th scope="col">Handle</th>
-							<th scope="col">Checksum</th>
-							<th scope="col">Size</th>
-							<th scope="col">Updated on</th>
-							<th scope="col">Status</th>
-							<th scope="col">Actions</th>
-						</tr>
-					</thead>
-					<tbody id="item_list"></tbody>
-				</table>
-			</div>
-		</div>
+		<table class="table" style="border-collapse: separate; border-spacing: 0px 8px !important;">
+			<thead class="thead-light">
+				<tr>
+					<th scope="col">Basic Information</th>
+					<th scope="col">Status</th>					
+					<th scope="col">Updated on</th>
+					<th scope="col">Actions</th>
+				</tr>
+			</thead>
+			<tbody id="item_list"></tbody>
+		</table>
 
 		<div class="card" style="margin: 10px;">
 			<div class="card-header">
